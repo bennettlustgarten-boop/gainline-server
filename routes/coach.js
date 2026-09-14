@@ -1,43 +1,33 @@
 const express = require("express");
 const router = express.Router();
 const Stripe = require("stripe");
-const { getCoach, saveCoach } = require("../db");
+const { saveUser, listOnboardedCoaches } = require("../db");
+const { requireRole } = require("../middleware/auth");
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-const APP_URL = process.env.APP_URL || "http://localhost:5173";
+const APP_URL = process.env.APP_URL || "http://localhost:4242";
 
-// Step 1 — start onboarding for a coach.
-// coachId here should be your app's own internal ID for that coach.
-router.post("/onboard", async (req, res) => {
+// Start (or resume) Stripe Connect payout onboarding for the logged-in coach.
+router.post("/onboard", requireRole("coach"), async (req, res) => {
   try {
-    const { coachId, email } = req.body;
-    if (!coachId) return res.status(400).json({ error: "coachId is required" });
+    let coach = req.user;
 
-    let coach = getCoach(coachId);
-
-    // Create the Stripe connected account once, reuse it after that.
-    if (!coach?.stripeAccountId) {
+    if (!coach.stripeAccountId) {
       const account = await stripe.accounts.create({
         type: "express",
-        email,
+        email: coach.email,
         capabilities: {
           card_payments: { requested: true },
           transfers: { requested: true },
         },
       });
-      coach = saveCoach(coachId, {
-        stripeAccountId: account.id,
-        onboardingComplete: false,
-      });
+      coach = saveUser(coach.id, { stripeAccountId: account.id, onboardingComplete: false });
     }
 
-    // Generate a one-time onboarding link — Stripe hosts this page.
-    // The coach enters their own bank details directly with Stripe; your
-    // server and database never see or store that information.
     const accountLink = await stripe.accountLinks.create({
       account: coach.stripeAccountId,
-      refresh_url: `${APP_URL}/onboarding/refresh?coachId=${coachId}`,
-      return_url: `${APP_URL}/onboarding/complete?coachId=${coachId}`,
+      refresh_url: `${APP_URL}/onboarding-refresh.html`,
+      return_url: `${APP_URL}/onboarding-complete.html`,
       type: "account_onboarding",
     });
 
@@ -48,21 +38,24 @@ router.post("/onboard", async (req, res) => {
   }
 });
 
-// Check whether a coach has finished onboarding and can receive payouts.
-router.get("/status/:coachId", async (req, res) => {
+// Check whether the logged-in coach has finished onboarding and can be paid.
+router.get("/status", requireRole("coach"), async (req, res) => {
   try {
-    const coach = getCoach(req.params.coachId);
-    if (!coach?.stripeAccountId) {
-      return res.json({ onboarded: false });
-    }
-    const account = await stripe.accounts.retrieve(coach.stripeAccountId);
+    if (!req.user.stripeAccountId) return res.json({ onboarded: false });
+    const account = await stripe.accounts.retrieve(req.user.stripeAccountId);
     const onboarded = account.charges_enabled && account.payouts_enabled;
-    saveCoach(req.params.coachId, { onboardingComplete: onboarded });
+    saveUser(req.user.id, { onboardingComplete: onboarded });
     res.json({ onboarded });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
   }
+});
+
+// Public list of coaches who've finished payout setup — used by the client
+// "browse coaches" / pay page. Only ever exposes coachId/name, never Stripe IDs.
+router.get("/list", (req, res) => {
+  res.json({ coaches: listOnboardedCoaches() });
 });
 
 module.exports = router;

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Client dashboard — Gainline</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="dash-header">
+    <div class="left">
+      <a class="brand" href="/">Gain<span>line</span></a>
+      <span class="pill" style="background: var(--surface-2);">Client</span>
+    </div>
+    <div class="who">
+      <div class="name" id="who-name">&nbsp;</div>
+      <div class="role" id="who-username">&nbsp;</div>
+    </div>
+    <a class="small-btn button secondary" href="mailto:GainLineSupport@gmail.com" style="margin-top:0; text-decoration:none;" title="Contact support">Support</a>
+    <button class="small-btn button secondary" id="logout-btn" style="margin-top:0;">Log out</button>
+  </div>
+
+  <nav class="tab-bar" id="tab-bar">
+    <button class="tab-btn" data-tab="home">Home</button>
+    <button class="tab-btn" data-tab="calendar">Calendar</button>
+    <button class="tab-btn" data-tab="sheets">Sheets</button>
+    <button class="tab-btn" data-tab="checkin">Check-in</button>
+    <button class="tab-btn" data-tab="messages">Messages</button>
+    <button class="tab-btn" data-tab="find">Find a Coach</button>
+    <button class="tab-btn" data-tab="pay">Pay My Coach</button>
+  </nav>
+
+  <main class="dash-main">
+    <div id="notice-banner" class="card" style="display:none; background: rgba(94,234,212,0.1);"></div>
+
+    <section data-tab-panel="home">
+      <div class="card" id="home-coach-card"></div>
+    </section>
+
+    <section data-tab-panel="calendar">
+      <div id="calendar-list"></div>
+    </section>
+
+    <section data-tab-panel="sheets">
+      <div class="flex-row" style="margin-bottom:10px;">
+        <span class="hint">Filter:</span>
+        <button class="small-btn" data-filter="all">All</button>
+        <button class="small-btn secondary" data-filter="workout">Workout</button>
+        <button class="small-btn secondary" data-filter="diet">Diet</button>
+      </div>
+      <div id="sheets-list"></div>
+    </section>
+
+    <section data-tab-panel="checkin">
+      <div class="card" id="checkin-card"></div>
+    </section>
+
+    <section data-tab-panel="messages">
+      <div class="card" id="messages-card"></div>
+    </section>
+
+    <section data-tab-panel="find">
+      <div id="find-list" style="max-width: 480px; margin: 0 auto;"></div>
+    </section>
+
+    <section data-tab-panel="pay">
+      <div class="card" id="pay-card"></div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+  <script src="/client-dashboard.js"></script>
+</body>
+</html>

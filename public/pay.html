@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pay your coach — Gainline</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="site">
+    <a class="brand" href="/">Gain<span>line</span></a>
+    <nav class="site"><a href="/client-dashboard.html">Dashboard</a></nav>
+  </header>
+
+  <main class="page">
+    <h1 id="heading">Pay your coach</h1>
+    <p class="lede">Payments go through Stripe and go straight to your coach — Gainline doesn't take a cut.</p>
+
+    <form id="pay-form" class="card">
+      <label for="amount">Amount (USD)</label>
+      <input type="number" id="amount" min="1" step="0.01" required placeholder="150.00" />
+
+      <label>Payment type</label>
+      <div class="radio-row">
+        <label><input type="radio" name="mode" value="payment" checked /> One-time</label>
+        <label><input type="radio" name="mode" value="subscription" /> Monthly</label>
+      </div>
+
+      <label for="description">What's this for?</label>
+      <input type="text" id="description" placeholder="Prepaid coaching package" />
+
+      <button type="submit" id="submit-btn">Continue to payment</button>
+      <div class="status" id="status"></div>
+    </form>
+
+    <a class="back-link" href="/client-dashboard.html">&larr; Back to dashboard</a>
+  </main>
+
+  <script src="/app.js"></script>
+  <script>
+    const coachId = qs("coachId");
+    const coachName = qs("name");
+    if (coachName) document.getElementById("heading").textContent = `Pay ${coachName}`;
+
+    const form = document.getElementById("pay-form");
+    const statusEl = document.getElementById("status");
+    const submitBtn = document.getElementById("submit-btn");
+
+    (async () => {
+      await requireLogin("client");
+    })();
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!coachId) {
+        showStatus(statusEl, "Missing coach — go back and pick a coach first.", "error");
+        return;
+      }
+
+      const amountUsd = document.getElementById("amount").value;
+      const mode = document.querySelector('input[name="mode"]:checked').value;
+      const description = document.getElementById("description").value.trim();
+
+      submitBtn.disabled = true;
+      showStatus(statusEl, "Redirecting to secure checkout...", "info");
+
+      try {
+        const { url } = await api("/payments/checkout", {
+          method: "POST",
+          body: JSON.stringify({ coachId, amountUsd, mode, description }),
+        });
+        window.location.href = url;
+      } catch (err) {
+        showStatus(statusEl, err.message, "error");
+        submitBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

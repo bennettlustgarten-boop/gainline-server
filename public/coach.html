@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Set up payouts — Gainline</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="site">
+    <a class="brand" href="/">Gain<span>line</span></a>
+    <nav class="site"><a href="/coach-dashboard.html">Dashboard</a></nav>
+  </header>
+
+  <main class="page">
+    <h1>Set up payouts</h1>
+    <p class="lede">Stripe will walk you through the rest. You enter your own bank info directly with Stripe — this site never sees it.</p>
+
+    <div class="card">
+      <button id="onboard-btn">Continue to Stripe</button>
+      <div class="status" id="status"></div>
+    </div>
+
+    <a class="back-link" href="/coach-dashboard.html">&larr; Back to dashboard</a>
+  </main>
+
+  <script src="/app.js"></script>
+  <script>
+    const statusEl = document.getElementById("status");
+    const onboardBtn = document.getElementById("onboard-btn");
+
+    (async () => {
+      await requireLogin("coach");
+    })();
+
+    onboardBtn.addEventListener("click", async () => {
+      onboardBtn.disabled = true;
+      showStatus(statusEl, "Setting up your account with Stripe...", "info");
+      try {
+        const { url } = await api("/coach/onboard", { method: "POST" });
+        window.location.href = url;
+      } catch (err) {
+        showStatus(statusEl, err.message, "error");
+        onboardBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Onboarding link expired — Gainline</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="site">
+    <a class="brand" href="/">Gain<span>line</span></a>
+  </header>
+
+  <main class="page">
+    <h1>That link expired</h1>
+    <p class="lede">Stripe's onboarding links only last a little while. No problem — let's get you a fresh one.</p>
+
+    <div class="card">
+      <button id="retry-btn">Get a new onboarding link</button>
+      <div class="status" id="status"></div>
+    </div>
+
+    <a class="back-link" href="/coach-dashboard.html">&larr; Back to dashboard</a>
+  </main>
+
+  <script src="/app.js"></script>
+  <script>
+    const statusEl = document.getElementById("status");
+    const retryBtn = document.getElementById("retry-btn");
+
+    (async () => {
+      await requireLogin("coach");
+    })();
+
+    retryBtn.addEventListener("click", async () => {
+      retryBtn.disabled = true;
+      showStatus(statusEl, "Requesting a new link...", "info");
+      try {
+        const { url } = await api("/coach/onboard", { method: "POST" });
+        window.location.href = url;
+      } catch (err) {
+        showStatus(statusEl, err.message, "error");
+        retryBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

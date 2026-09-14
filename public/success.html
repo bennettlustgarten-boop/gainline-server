@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Payment successful — Gainline</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="site">
+    <a class="brand" href="/">Gain<span>line</span></a>
+  </header>
+
+  <main class="page">
+    <h1>Payment successful</h1>
+    <p class="lede">Thanks — your payment went through and your coach has been notified.</p>
+
+    <div class="card">
+      <span class="pill ok">Paid</span>
+    </div>
+
+    <a class="button secondary" href="/client-dashboard.html">Back to dashboard</a>
+  </main>
+
+  <script src="/app.js"></script>
+  <script>
+    const sessionId = qs("session_id");
+    if (sessionId) {
+      api("/payments/confirm", { method: "POST", body: JSON.stringify({ sessionId }) }).catch(() => {});
+    }
+  </script>
+</body>
+</html>

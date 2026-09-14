@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Onboarding — Gainline</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="site">
+    <a class="brand" href="/">Gain<span>line</span></a>
+  </header>
+
+  <main class="page">
+    <h1>Checking your account&hellip;</h1>
+    <p class="lede">Stripe sent you back here after onboarding. Give us a moment to confirm everything's ready.</p>
+
+    <div class="card">
+      <div id="result">Checking status...</div>
+      <div id="actions"></div>
+    </div>
+
+    <a class="back-link" href="/coach-dashboard.html">&larr; Back to dashboard</a>
+  </main>
+
+  <script src="/app.js"></script>
+  <script>
+    const resultEl = document.getElementById("result");
+    const actionsEl = document.getElementById("actions");
+
+    (async () => {
+      await requireLogin("coach");
+      try {
+        const { onboarded } = await api("/coach/status");
+        if (onboarded) {
+          resultEl.innerHTML = '<span class="pill ok">Ready</span> &nbsp;Your account is set up — you can now receive payments.';
+          const link = document.createElement("a");
+          link.href = "/coach-dashboard.html";
+          link.className = "button";
+          link.textContent = "Go to dashboard";
+          actionsEl.appendChild(link);
+        } else {
+          resultEl.innerHTML = '<span class="pill pending">Pending</span> &nbsp;Stripe still needs a bit more info from you.';
+          const link = document.createElement("a");
+          link.href = "/coach.html";
+          link.className = "button secondary";
+          link.textContent = "Finish onboarding";
+          actionsEl.appendChild(link);
+        }
+      } catch (err) {
+        resultEl.textContent = err.message;
+      }
+    })();
+  </script>
+</body>
+</html>

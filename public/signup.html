@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Create your account — Gainline</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="site">
+    <a class="brand" href="/">Gain<span>line</span></a>
+    <nav class="site"><a href="/login.html">Log in</a></nav>
+  </header>
+
+  <main class="page">
+    <h1 id="heading">Create your account</h1>
+    <p class="lede" id="lede">Set up your Gainline profile.</p>
+
+    <div class="card" id="invite-card" style="display:none; background: var(--surface-2);"></div>
+
+    <form id="signup-form" class="card">
+      <div class="radio-row">
+        <label><input type="radio" name="role" value="coach" /> I'm a coach</label>
+        <label><input type="radio" name="role" value="client" /> I'm a client</label>
+      </div>
+
+      <label for="name">Full name</label>
+      <input type="text" id="name" required placeholder="Jordan Lee" />
+
+      <label for="username">Username</label>
+      <input type="text" id="username" required placeholder="jordanlee" />
+
+      <label for="email">Email</label>
+      <input type="email" id="email" placeholder="you@example.com" />
+
+      <label for="password">Password</label>
+      <input type="password" id="password" required minlength="8" placeholder="At least 8 characters" />
+
+      <label class="checkbox-row" for="agree-terms" style="display:flex; align-items:flex-start; gap:8px; font-weight:normal; margin-top:6px;">
+        <input type="checkbox" id="agree-terms" required style="margin-top:3px;" />
+        <span>I have read and agree to the <a href="/terms.html" target="_blank" rel="noopener">Terms of Use &amp; Liability Waiver</a>, including its release of liability between coaches and clients.</span>
+      </label>
+
+      <button type="submit" id="submit-btn">Create account</button>
+      <div class="status" id="status"></div>
+    </form>
+
+    <p class="hint" style="margin-top:16px;">Having trouble with the site? Contact <a href="mailto:GainLineSupport@gmail.com">GainLineSupport@gmail.com</a></p>
+
+    <a class="back-link" href="/">&larr; Back home</a>
+  </main>
+
+  <script src="/app.js"></script>
+  <script>
+    const form = document.getElementById("signup-form");
+    const statusEl = document.getElementById("status");
+    const submitBtn = document.getElementById("submit-btn");
+    const inviteCard = document.getElementById("invite-card");
+
+    const inviteToken = qs("invite");
+    const roleParam = qs("role");
+    if (roleParam === "coach" || roleParam === "client") {
+      const radio = form.querySelector(`input[name="role"][value="${roleParam}"]`);
+      if (radio) radio.checked = true;
+    }
+    if (inviteToken) {
+      const clientRadio = form.querySelector('input[name="role"][value="client"]');
+      clientRadio.checked = true;
+      clientRadio.closest(".radio-row").querySelectorAll("input").forEach((i) => (i.disabled = i !== clientRadio));
+      api(`/invites/${encodeURIComponent(inviteToken)}`)
+        .then(({ coachName }) => {
+          inviteCard.style.display = "block";
+          inviteCard.innerHTML = `<strong>You've been invited${coachName ? ` by ${escapeHtml(coachName)}` : ""}!</strong><div class="hint">Create your client account below and you'll be connected automatically.</div>`;
+        })
+        .catch(() => {});
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const role = form.querySelector('input[name="role"]:checked')?.value;
+      if (!role) {
+        showStatus(statusEl, "Choose whether you're a coach or a client.", "error");
+        return;
+      }
+      if (!document.getElementById("agree-terms").checked) {
+        showStatus(statusEl, "You must agree to the Terms of Use & Liability Waiver to create an account.", "error");
+        return;
+      }
+      const name = document.getElementById("name").value.trim();
+      const username = document.getElementById("username").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+
+      submitBtn.disabled = true;
+      showStatus(statusEl, "Creating your account...", "info");
+      try {
+        const { inviteNotice } = await api("/auth/signup", {
+          method: "POST",
+          body: JSON.stringify({ role, name, username, email, password, inviteToken }),
+        });
+        if (inviteNotice) sessionStorage.setItem("gainline_notice", inviteNotice);
+        window.location.href = role === "coach" ? "/coach-dashboard.html" : "/client-dashboard.html";
+      } catch (err) {
+        showStatus(statusEl, err.message, "error");
+        submitBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Log in — Gainline</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="site">
+    <a class="brand" href="/">Gain<span>line</span></a>
+  </header>
+
+  <main class="page">
+    <h1>Log in</h1>
+    <p class="lede">Welcome back.</p>
+
+    <form id="login-form" class="card">
+      <label for="username">Username</label>
+      <input type="text" id="username" required placeholder="jordanlee" />
+
+      <label for="password">Password</label>
+      <input type="password" id="password" required placeholder="Your password" />
+
+      <button type="submit" id="submit-btn">Log in</button>
+      <div class="status" id="status"></div>
+    </form>
+
+    <p class="hint">No account yet? <a href="/signup.html">Sign up</a></p>
+    <a class="back-link" href="/">&larr; Back home</a>
+  </main>
+
+  <script src="/app.js"></script>
+  <script>
+    const form = document.getElementById("login-form");
+    const statusEl = document.getElementById("status");
+    const submitBtn = document.getElementById("submit-btn");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const username = document.getElementById("username").value.trim();
+      const password = document.getElementById("password").value;
+
+      submitBtn.disabled = true;
+      showStatus(statusEl, "Logging in...", "info");
+      try {
+        const { user } = await api("/auth/login", { method: "POST", body: JSON.stringify({ username, password }) });
+        const next = qs("next");
+        window.location.href = next || (user.role === "coach" ? "/coach-dashboard.html" : "/client-dashboard.html");
+      } catch (err) {
+        showStatus(statusEl, err.message, "error");
+        submitBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Coach dashboard — Gainline</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="dash-header">
+    <div class="left">
+      <a class="brand" href="/">Gain<span>line</span></a>
+      <span class="pill ok">Coach</span>
+    </div>
+    <div class="who">
+      <div class="name" id="who-name">&nbsp;</div>
+      <div class="role" id="who-username">&nbsp;</div>
+    </div>
+    <a class="small-btn button secondary" href="mailto:GainLineSupport@gmail.com" style="margin-top:0; text-decoration:none;" title="Contact support">Support</a>
+    <button class="small-btn button secondary" id="logout-btn" style="margin-top:0;">Log out</button>
+  </div>
+
+  <nav class="tab-bar" id="tab-bar">
+    <button class="tab-btn" data-tab="overview">Overview</button>
+    <button class="tab-btn" data-tab="clients">Clients</button>
+    <button class="tab-btn" data-tab="calendar">Calendar</button>
+    <button class="tab-btn" data-tab="sheets">Sheets</button>
+    <button class="tab-btn" data-tab="checkins">Check-ins</button>
+    <button class="tab-btn" data-tab="billing">Billing</button>
+    <button class="tab-btn" data-tab="messages">Messages</button>
+    <button class="tab-btn" data-tab="assistant">Assistant</button>
+    <button class="tab-btn" data-tab="ads">Advertise</button>
+    <button class="tab-btn" data-tab="membership">Membership</button>
+  </nav>
+
+  <main class="dash-main">
+    <div id="notice-banner" class="card" style="display:none; background: rgba(94,234,212,0.1);"></div>
+
+    <section data-tab-panel="overview">
+      <div class="card" id="overview-plan"></div>
+      <div class="stat-row" style="margin-top:16px;" id="overview-stats"></div>
+    </section>
+
+    <section data-tab-panel="clients">
+      <div id="clients-roster-view">
+        <div class="card" id="invite-card"></div>
+        <div class="card" id="search-card">
+          <h2 style="margin-top:0;">Add a client already on Gainline</h2>
+          <input type="text" id="client-search" placeholder="Search by name or username..." />
+          <div id="search-results" style="margin-top:10px;"></div>
+        </div>
+        <div id="clients-list"></div>
+      </div>
+      <div id="client-detail-view" style="display:none;"></div>
+    </section>
+
+    <section data-tab-panel="calendar">
+      <div class="dash-grid">
+        <div class="card" id="calendar-builder"></div>
+        <div id="calendar-list"></div>
+      </div>
+    </section>
+
+    <section data-tab-panel="sheets">
+      <div class="dash-grid">
+        <div class="card" id="sheet-builder"></div>
+        <div id="sheet-history"></div>
+      </div>
+    </section>
+
+    <section data-tab-panel="checkins">
+      <div class="dash-grid">
+        <div class="card" id="checkin-builder"></div>
+        <div id="checkin-submissions-panel">
+          <div class="card">
+            <label for="checkin-client-select">View submissions from</label>
+            <select id="checkin-client-select"></select>
+          </div>
+          <div id="checkin-submissions-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <section data-tab-panel="billing">
+      <div class="card" id="payouts-card"></div>
+      <div class="dash-grid">
+        <div class="card" id="billing-builder"></div>
+        <div id="billing-plans-panel">
+          <div class="card">
+            <label for="billing-client-select">View payment plans for</label>
+            <select id="billing-client-select"></select>
+          </div>
+          <div id="billing-plans-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <section data-tab-panel="messages">
+      <div class="dash-grid" style="grid-template-columns: 220px 1fr;">
+        <div class="card"><div class="thread-list" id="thread-list"></div></div>
+        <div class="card" id="message-panel">
+          <p class="hint">Pick a client or another coach on the left to start messaging.</p>
+        </div>
+      </div>
+    </section>
+
+    <section data-tab-panel="assistant">
+      <div class="card">
+        <h2 style="margin-top:0;">Coaching Assistant</h2>
+        <div class="msg-thread" id="assistant-thread"></div>
+        <div class="msg-compose">
+          <input type="text" id="assistant-input" placeholder="Ask about programming, macros, plateaus..." />
+          <button id="assistant-send" class="small-btn" style="margin-top:0;">Ask</button>
+        </div>
+      </div>
+    </section>
+
+    <section data-tab-panel="ads">
+      <div class="card" id="ads-card"></div>
+    </section>
+
+    <section data-tab-panel="membership">
+      <div class="card" id="membership-card"></div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+  <script src="/coach-dashboard.js"></script>
+</body>
+</html>

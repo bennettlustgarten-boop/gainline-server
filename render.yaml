@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: mii-fitt-server
+    name: gainline-server
     runtime: node
     plan: free
     buildCommand: npm install
@@ -10,9 +10,19 @@ services:
         sync: false
       - key: STRIPE_WEBHOOK_SECRET
         sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: ANTHROPIC_API_KEY
+        sync: false
       - key: PLATFORM_FEE_PERCENT
         value: "10"
       - key: APP_URL
         sync: false
       - key: PORT
         value: "4242"
+    # data.db and /uploads live on local disk. Render's free web service plan
+    # has no persistent disk, so both are wiped on every deploy/restart —
+    # fine for a first test deploy, but before treating this as the real
+    # production site, upgrade off the free plan and add a Render Disk
+    # (https://render.com/docs/disks) mounted at this service's root so
+    # data.db and uploads/ survive redeploys.
