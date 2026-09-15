@@ -16,7 +16,7 @@ const {
 const { uid } = require("../lib/uid");
 const { publicUser } = require("../lib/publicUser");
 const { tierForCoach } = require("../lib/tiers");
-const { transporter, SUPPORT_EMAIL_USER } = require("../lib/mailer");
+const { sendMail, configured: mailerConfigured } = require("../lib/mailer");
 const { requireAuth } = require("../middleware/auth");
 
 const USERNAME_RE = /^[a-z0-9_.]{3,20}$/;
@@ -26,11 +26,10 @@ const VERIFY_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 
 async function sendVerificationEmail(user) {
-  if (!transporter || !user.email) return;
+  if (!mailerConfigured || !user.email) return;
   const link = `${APP_URL}/verify-email.html?token=${user.emailVerifyToken}`;
   try {
-    await transporter.sendMail({
-      from: SUPPORT_EMAIL_USER,
+    await sendMail({
       to: user.email,
       subject: "Verify your Gainline email",
       text: `Hi ${user.name},\n\nClick the link below to verify your email and activate your Gainline account:\n\n${link}\n\nThis link expires in 24 hours. If you didn't sign up for Gainline, you can ignore this email.`,
@@ -41,11 +40,10 @@ async function sendVerificationEmail(user) {
 }
 
 async function sendPasswordResetEmail(user) {
-  if (!transporter || !user.email) return;
+  if (!mailerConfigured || !user.email) return;
   const link = `${APP_URL}/reset-password.html?token=${user.passwordResetToken}`;
   try {
-    await transporter.sendMail({
-      from: SUPPORT_EMAIL_USER,
+    await sendMail({
       to: user.email,
       subject: "Reset your Gainline password",
       text: `Hi ${user.name},\n\nSomeone (hopefully you) asked to reset your Gainline password. Click the link below to choose a new one:\n\n${link}\n\nThis link expires in 1 hour. If you didn't request this, you can safely ignore this email — your password won't change.`,
@@ -177,8 +175,8 @@ const verifyLimiter = rateLimit({
 router.post("/resend-verification", requireAuth, verifyLimiter, async (req, res) => {
   if (req.user.emailVerified) return res.json({ ok: true, alreadyVerified: true });
   if (!req.user.email) return res.status(400).json({ error: "No email on file for this account" });
-  if (!transporter) {
-    return res.status(500).json({ error: "Email sending isn't configured yet — set SUPPORT_EMAIL_USER and SUPPORT_EMAIL_APP_PASSWORD in .env." });
+  if (!mailerConfigured) {
+    return res.status(500).json({ error: "Email sending isn't configured yet — set RESEND_API_KEY in .env." });
   }
 
   const user = saveUser(req.user.id, { emailVerifyToken: uid("evt_"), emailVerifyTokenExpires: Date.now() + VERIFY_TOKEN_TTL_MS });

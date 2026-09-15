@@ -2,9 +2,11 @@ const express = require("express");
 const router = express.Router();
 const rateLimit = require("express-rate-limit");
 const { getUser } = require("../db");
-const { transporter, SUPPORT_EMAIL_USER } = require("../lib/mailer");
+const { sendMail, configured } = require("../lib/mailer");
 
-const SUPPORT_TO = "GainLineSupport@gmail.com";
+// Resend's sandbox mode (no verified domain yet) only allows sending to the
+// exact-case address that owns the API key — lowercase matches that.
+const SUPPORT_TO = "gainlinesupport@gmail.com";
 
 // Anyone can hit this — logged in or not (the signup page has a support link
 // before a visitor has an account) — so it's rate-limited by IP to stop spam.
@@ -18,10 +20,8 @@ const supportLimiter = rateLimit({
 
 router.post("/", supportLimiter, async (req, res) => {
   try {
-    if (!transporter) {
-      return res.status(500).json({
-        error: "Support email isn't configured yet — set SUPPORT_EMAIL_USER and SUPPORT_EMAIL_APP_PASSWORD in .env.",
-      });
+    if (!configured) {
+      return res.status(500).json({ error: "Support email isn't configured yet — set RESEND_API_KEY in .env." });
     }
     const { message, replyTo } = req.body;
     if (!message?.trim()) return res.status(400).json({ error: "message is required" });
@@ -31,8 +31,7 @@ router.post("/", supportLimiter, async (req, res) => {
       ? `${sessionUser.name} (@${sessionUser.username}, ${sessionUser.role})`
       : "A visitor who isn't logged in";
 
-    await transporter.sendMail({
-      from: SUPPORT_EMAIL_USER,
+    await sendMail({
       to: SUPPORT_TO,
       replyTo: replyTo?.trim() || undefined,
       subject: `Gainline support request from ${sessionUser ? sessionUser.name : "a visitor"}`,
