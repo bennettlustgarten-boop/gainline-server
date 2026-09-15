@@ -2,13 +2,32 @@ const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcryptjs");
 const rateLimit = require("express-rate-limit");
-const { getUser, saveUser, findUserByUsername, getInvite, addRelationship, getClientIds } = require("../db");
+const { getUser, saveUser, findUserByUsername, findUserByEmailVerifyToken, getInvite, addRelationship, getClientIds } = require("../db");
 const { uid } = require("../lib/uid");
 const { publicUser } = require("../lib/publicUser");
 const { tierForCoach } = require("../lib/tiers");
+const { transporter, SUPPORT_EMAIL_USER } = require("../lib/mailer");
 const { requireAuth } = require("../middleware/auth");
 
 const USERNAME_RE = /^[a-z0-9_.]{3,20}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const APP_URL = process.env.APP_URL || "http://localhost:4242";
+const VERIFY_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+
+async function sendVerificationEmail(user) {
+  if (!transporter || !user.email) return;
+  const link = `${APP_URL}/verify-email.html?token=${user.emailVerifyToken}`;
+  try {
+    await transporter.sendMail({
+      from: SUPPORT_EMAIL_USER,
+      to: user.email,
+      subject: "Verify your Gainline email",
+      text: `Hi ${user.name},\n\nClick the link below to verify your email and activate your Gainline account:\n\n${link}\n\nThis link expires in 24 hours. If you didn't sign up for Gainline, you can ignore this email.`,
+    });
+  } catch (err) {
+    console.error("Failed to send verification email:", err.message);
+  }
+}
 
 // Brute-force protection: caps how many login/signup attempts one IP can
 // make in a window. Login is scored only on failed attempts so a legit user
@@ -35,9 +54,10 @@ router.post("/signup", signupLimiter, async (req, res) => {
   try {
     const { role, name, username, email, password, inviteToken } = req.body;
     if (!["coach", "client"].includes(role)) return res.status(400).json({ error: "role must be coach or client" });
-    if (!name?.trim() || !username?.trim() || !password) {
-      return res.status(400).json({ error: "name, username, and password are required" });
+    if (!name?.trim() || !username?.trim() || !password || !email?.trim()) {
+      return res.status(400).json({ error: "name, username, email, and password are required" });
     }
+    if (!EMAIL_RE.test(email.trim())) return res.status(400).json({ error: "Enter a valid email address" });
     if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters" });
 
     const handle = username.trim().replace(/^@/, "").toLowerCase();
@@ -55,12 +75,16 @@ router.post("/signup", signupLimiter, async (req, res) => {
       role,
       name: name.trim(),
       username: handle,
-      email: email?.trim() || undefined,
+      email: email.trim(),
       passwordHash,
       bio: role === "coach" ? "New coach on Gainline." : "",
       createdAt: Date.now(),
       membershipTier: role === "coach" ? "free" : undefined,
+      emailVerified: false,
+      emailVerifyToken: uid("evt_"),
+      emailVerifyTokenExpires: Date.now() + VERIFY_TOKEN_TTL_MS,
     });
+    sendVerificationEmail(user);
 
     let inviteNotice = null;
     if (inviteToken && role === "client") {
@@ -110,7 +134,44 @@ router.post("/logout", (req, res) => {
 });
 
 router.get("/me", requireAuth, (req, res) => {
-  res.json({ user: publicUser(req.user) });
+  // /me is the one place a user's own email is safe to include — every
+  // other place publicUser() is used, the subject could be someone ELSE
+  // looking at a profile, where email must stay private.
+  res.json({ user: { ...publicUser(req.user), email: req.user.email || null } });
+});
+
+const verifyLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many verification emails requested. Please wait a while and try again." },
+});
+
+router.post("/resend-verification", requireAuth, verifyLimiter, async (req, res) => {
+  if (req.user.emailVerified) return res.json({ ok: true, alreadyVerified: true });
+  if (!req.user.email) return res.status(400).json({ error: "No email on file for this account" });
+  if (!transporter) {
+    return res.status(500).json({ error: "Email sending isn't configured yet — set SUPPORT_EMAIL_USER and SUPPORT_EMAIL_APP_PASSWORD in .env." });
+  }
+
+  const user = saveUser(req.user.id, { emailVerifyToken: uid("evt_"), emailVerifyTokenExpires: Date.now() + VERIFY_TOKEN_TTL_MS });
+  await sendVerificationEmail(user);
+  res.json({ ok: true });
+});
+
+router.post("/verify-email", async (req, res) => {
+  const { token } = req.body;
+  if (!token) return res.status(400).json({ error: "token is required" });
+
+  const user = findUserByEmailVerifyToken(token);
+  if (!user) return res.status(400).json({ error: "That verification link is invalid or has already been used." });
+  if (user.emailVerifyTokenExpires && user.emailVerifyTokenExpires < Date.now()) {
+    return res.status(400).json({ error: "That verification link has expired — request a new one from your dashboard." });
+  }
+
+  saveUser(user.id, { emailVerified: true, emailVerifyToken: null, emailVerifyTokenExpires: null });
+  res.json({ ok: true });
 });
 
 module.exports = router;

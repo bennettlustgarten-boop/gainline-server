@@ -1,20 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const rateLimit = require("express-rate-limit");
-const nodemailer = require("nodemailer");
 const { getUser } = require("../db");
+const { transporter, SUPPORT_EMAIL_USER } = require("../lib/mailer");
 
 const SUPPORT_TO = "GainLineSupport@gmail.com";
-const SMTP_USER = process.env.SUPPORT_EMAIL_USER;
-const SMTP_PASS = process.env.SUPPORT_EMAIL_APP_PASSWORD;
-
-// Only built if both env vars are set — see .env.example for how to get a
-// Gmail App Password. Until then, the route below returns a clear "not
-// configured" error instead of silently failing.
-const transporter =
-  SMTP_USER && SMTP_PASS
-    ? nodemailer.createTransport({ service: "gmail", auth: { user: SMTP_USER, pass: SMTP_PASS } })
-    : null;
 
 // Anyone can hit this — logged in or not (the signup page has a support link
 // before a visitor has an account) — so it's rate-limited by IP to stop spam.
@@ -42,7 +32,7 @@ router.post("/", supportLimiter, async (req, res) => {
       : "A visitor who isn't logged in";
 
     await transporter.sendMail({
-      from: SMTP_USER,
+      from: SUPPORT_EMAIL_USER,
       to: SUPPORT_TO,
       replyTo: replyTo?.trim() || undefined,
       subject: `Gainline support request from ${sessionUser ? sessionUser.name : "a visitor"}`,

@@ -120,6 +120,37 @@ async function requireLogin(role) {
   }
 }
 
+// Blocks dashboard use until the account's email is verified — replaces the
+// tab content with a resend-email prompt, leaving the header (so logout /
+// support still work) intact. Called from both dashboards right after login.
+function showEmailVerifyGate(email) {
+  const tabBar = document.getElementById("tab-bar");
+  if (tabBar) tabBar.style.display = "none";
+  const main = document.querySelector(".dash-main");
+  if (!main) return;
+  main.innerHTML = `
+    <div class="card" style="max-width:480px; margin:40px auto; text-align:center;">
+      <h2 style="margin-top:0;">Verify your email</h2>
+      <p class="hint">We sent a verification link to <strong>${escapeHtml(email || "your email")}</strong>. Click the link to activate your account — you'll need to do this before you can use Gainline.</p>
+      <button id="resend-verify-btn">Resend email</button>
+      <div class="status" id="verify-status"></div>
+    </div>
+  `;
+  document.getElementById("resend-verify-btn").addEventListener("click", async () => {
+    const statusEl = document.getElementById("verify-status");
+    const btn = document.getElementById("resend-verify-btn");
+    btn.disabled = true;
+    try {
+      await api("/auth/resend-verification", { method: "POST" });
+      showStatus(statusEl, "Verification email sent — check your inbox.", "info");
+    } catch (err) {
+      showStatus(statusEl, err.message, "error");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
 async function logout() {
   await api("/auth/logout", { method: "POST" }).catch(() => {});
   window.location.href = "/";

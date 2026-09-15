@@ -87,6 +87,10 @@ function findUserBySubscriptionId(subscriptionId, field) {
   return Object.entries(getCollection("users")).find(([, u]) => u[field] === subscriptionId);
 }
 
+function findUserByEmailVerifyToken(token) {
+  return Object.values(getCollection("users")).find((u) => u.emailVerifyToken === token) || null;
+}
+
 function searchClients(query) {
   const q = query.toLowerCase();
   return Object.values(getCollection("users")).filter(
@@ -297,6 +301,7 @@ module.exports = {
   findUserByStripeAccountId,
   findUserByStripeCustomerId,
   findUserBySubscriptionId,
+  findUserByEmailVerifyToken,
   searchClients,
   listOnboardedCoaches,
   getClientIds,

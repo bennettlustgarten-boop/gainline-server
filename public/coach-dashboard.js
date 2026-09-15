@@ -14,6 +14,11 @@ const CAMERA_ICON = `<svg width="30" height="30" viewBox="0 0 24 24" fill="none"
   document.getElementById("logout-btn").addEventListener("click", logout);
   setupSupportLink();
 
+  if (!ME.emailVerified) {
+    showEmailVerifyGate(ME.email);
+    return;
+  }
+
   const notice = sessionStorage.getItem("gainline_notice");
   if (notice) {
     sessionStorage.removeItem("gainline_notice");
@@ -329,14 +334,36 @@ async function renderInviteCard() {
   document.getElementById("gen-invite-btn").addEventListener("click", async () => {
     const { token } = await api("/invites", { method: "POST" });
     const url = `${window.location.origin}/signup.html?invite=${token}`;
-    const mailBody = encodeURIComponent(`Hi,\n\n${ME.name} invited you to join Gainline as a client. Open the link below to create your account:\n\n${url}\n\nSee you inside!`);
-    const mailHref = `mailto:?subject=${encodeURIComponent(ME.name + " invited you to Gainline")}&body=${mailBody}`;
+    const subject = `${ME.name} invited you to Gainline`;
+    const body = `Hi,\n\n${ME.name} invited you to join Gainline as a client. Open the link below to create your account:\n\n${url}\n\nSee you inside!`;
+
+    // A plain mailto: link only does something if the OS has a mail app
+    // registered as the default handler — a lot of people only use webmail
+    // (Gmail/Outlook in the browser) with nothing registered, so mailto:
+    // silently does nothing for them. Gmail and Outlook both have a "web
+    // compose" URL that opens a real prefilled draft in a new tab
+    // regardless of OS mail settings; mailto: is offered too as a fallback
+    // for anyone whose actual mail app (Apple Mail, Outlook desktop, etc.)
+    // is genuinely set as their system default.
+    const gmailHref = `https://mail.google.com/mail/?view=cm&fs=1&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    // outlook.live.com is the personal-account (Outlook.com/Hotmail) compose
+    // link — far more likely to match a coach's actual account than
+    // outlook.office.com, which is for work/school Microsoft 365 accounts
+    // and would just dead-end anyone without one at a login wall.
+    const outlookHref = `https://outlook.live.com/mail/0/deeplink/compose?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    const mailtoHref = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
     document.getElementById("invite-link-area").innerHTML = `
       <div class="flex-row">
         <input type="text" readonly value="${escapeHtml(url)}" style="flex:1;" onclick="this.select()" />
         <button class="small-btn secondary button" id="copy-invite-btn">Copy</button>
       </div>
-      <a class="button small-btn" style="display:inline-block; margin-top:8px;" href="${mailHref}">Open email to send it</a>
+      <p class="hint" style="margin-top:10px; margin-bottom:4px;">Send it with:</p>
+      <div class="flex-row">
+        <a class="button small-btn secondary" target="_blank" rel="noopener" href="${gmailHref}">Gmail</a>
+        <a class="button small-btn secondary" target="_blank" rel="noopener" href="${outlookHref}">Outlook</a>
+        <a class="button small-btn secondary" href="${mailtoHref}">Other mail app</a>
+      </div>
     `;
     document.getElementById("copy-invite-btn").addEventListener("click", () => {
       navigator.clipboard?.writeText(url).catch(() => {});

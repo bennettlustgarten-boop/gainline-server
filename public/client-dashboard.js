@@ -10,6 +10,11 @@ let sheetFilter = "all";
   document.getElementById("logout-btn").addEventListener("click", logout);
   setupSupportLink();
 
+  if (!ME.emailVerified) {
+    showEmailVerifyGate(ME.email);
+    return;
+  }
+
   const notice = sessionStorage.getItem("gainline_notice");
   if (notice) {
     sessionStorage.removeItem("gainline_notice");
