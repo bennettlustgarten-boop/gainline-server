@@ -330,7 +330,18 @@ async function renderInviteCard() {
     <div id="invite-link-area" style="margin-top:10px;"></div>
   `;
   document.getElementById("gen-invite-btn").addEventListener("click", async () => {
-    const { token } = await api("/invites", { method: "POST" });
+    const btn = document.getElementById("gen-invite-btn");
+    const areaEl = document.getElementById("invite-link-area");
+    btn.disabled = true;
+    let token;
+    try {
+      ({ token } = await api("/invites", { method: "POST" }));
+    } catch (err) {
+      areaEl.innerHTML = `<p class="hint" style="color:var(--danger);">${escapeHtml(err.message)}</p>`;
+      btn.disabled = false;
+      return;
+    }
+    btn.disabled = false;
     const url = `${window.location.origin}/signup.html?invite=${token}`;
     const subject = `${ME.name} invited you to Gainline`;
     const body = `Hi,\n\n${ME.name} invited you to join Gainline as a client. Open the link below to create your account:\n\n${url}\n\nSee you inside!`;
