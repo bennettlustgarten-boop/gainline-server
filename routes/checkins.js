@@ -13,12 +13,13 @@ const {
 } = require("../db");
 const { uid } = require("../lib/uid");
 const { isRecognizedImage } = require("../lib/fileSignature");
+const { DATA_DIR } = require("../lib/dataDir");
 const { requireAuth, requireRole } = require("../middleware/auth");
 
 const POSE_KEYS = ["front", "side", "back"];
 const MAX_POSES_PER_KEY = 6;
 
-const UPLOAD_DIR = path.join(__dirname, "..", "uploads", "checkins");
+const UPLOAD_DIR = path.join(DATA_DIR, "uploads", "checkins");
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 // The client-supplied mimetype is trivially spoofable, so uploads are also

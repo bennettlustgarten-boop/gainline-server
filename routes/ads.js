@@ -7,12 +7,13 @@ const { listAds, upsertAd, removeAd, getUser, getClientIds, getReviews } = requi
 const { tierForCoach, adsIncluded } = require("../lib/tiers");
 const { uid } = require("../lib/uid");
 const { isRecognizedImage } = require("../lib/fileSignature");
+const { DATA_DIR } = require("../lib/dataDir");
 const { requireRole } = require("../middleware/auth");
 
 // Ad media is genuinely public (it's shown to any client browsing "Find a
 // Coach"), so — unlike check-in videos/photos — these files are served
 // straight off disk via express.static in server.js, no auth check needed.
-const UPLOAD_DIR = path.join(__dirname, "..", "uploads", "ads");
+const UPLOAD_DIR = path.join(DATA_DIR, "uploads", "ads");
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 // The client-supplied mimetype is trivially spoofable, so this is also

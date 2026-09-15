@@ -4,6 +4,7 @@ const express = require("express");
 const helmet = require("helmet");
 const session = require("express-session");
 const SqliteSessionStore = require("./lib/sqliteSessionStore");
+const { DATA_DIR } = require("./lib/dataDir");
 
 const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/users");
@@ -101,7 +102,7 @@ app.use("/api/support", supportRoutes);
 // private and only reachable through the authenticated route in
 // routes/checkins.js. Ad media is intentionally public (shown to any client
 // browsing "Find a Coach"), so it's served directly off disk here.
-app.use("/media/ads", express.static(path.join(__dirname, "uploads", "ads")));
+app.use("/media/ads", express.static(path.join(DATA_DIR, "uploads", "ads")));
 app.use(express.static(path.join(__dirname, "public")));
 
 const PORT = process.env.PORT || 4242;
