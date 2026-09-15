@@ -72,6 +72,7 @@ router.post("/checkout", requireRole("client"), async (req, res) => {
 
     const session = await stripe.checkout.sessions.create({
       mode, // "payment" or "subscription"
+      payment_method_types: ["card"],
       line_items: [lineItem],
       success_url: `${APP_URL}/success.html?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${APP_URL}/cancelled.html`,
