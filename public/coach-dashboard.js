@@ -278,7 +278,7 @@ async function loadClients() {
       ? candidates.map((u) => `
           <div class="flex-row" style="justify-content:space-between; padding:8px; background:var(--surface-2); border-radius:8px; margin-bottom:6px;">
             <span>${escapeHtml(u.name)} <span class="hint">@${escapeHtml(u.username)}</span></span>
-            <button class="small-btn" data-add-client="${u.id}">Add</button>
+            <button class="small-btn" data-add-client="${u.id}">Send request</button>
           </div>
         `).join("")
       : `<p class="hint">No matching clients found.</p>`;
@@ -289,10 +289,8 @@ async function loadClients() {
     if (!btn) return;
     btn.disabled = true;
     try {
-      await api("/clients", { method: "POST", body: JSON.stringify({ clientId: btn.dataset.addClient }) });
-      searchInput.value = "";
-      document.getElementById("search-results").innerHTML = "";
-      loadClients();
+      const result = await api("/clients", { method: "POST", body: JSON.stringify({ clientId: btn.dataset.addClient }) });
+      btn.textContent = result.alreadySent ? "Request already sent" : "Request sent — waiting for them to accept";
     } catch (err) {
       alert(err.message);
       btn.disabled = false;
@@ -1530,9 +1528,12 @@ function renderClientDetail(clientId, name, username, notes, submissions) {
   const detailEl = document.getElementById("client-detail-view");
   detailEl.innerHTML = `
     <button type="button" class="small-btn secondary" id="client-detail-back">&larr; Back to clients</button>
-    <div class="card" style="margin-top:10px;">
-      <div style="font-size:20px; font-weight:800;">${escapeHtml(name)}</div>
-      <div class="hint">@${escapeHtml(username)}</div>
+    <div class="card flex-row" style="margin-top:10px; justify-content:space-between; align-items:flex-start;">
+      <div>
+        <div style="font-size:20px; font-weight:800;">${escapeHtml(name)}</div>
+        <div class="hint">@${escapeHtml(username)}</div>
+      </div>
+      <button type="button" class="small-btn secondary" id="remove-client-btn" style="margin-top:0; color:var(--danger);">Remove client</button>
     </div>
 
     <div class="card" style="margin-top:12px; background:var(--surface-2);">
@@ -1559,6 +1560,18 @@ function renderClientDetail(clientId, name, username, notes, submissions) {
   `;
 
   document.getElementById("client-detail-back").onclick = closeClientDetail;
+
+  document.getElementById("remove-client-btn").onclick = async () => {
+    if (!confirm(`Remove ${name} from your clients? They'll keep their own history, but you'll lose access to it and won't be able to message or send them anything until they reconnect.`)) return;
+    try {
+      await api(`/clients/${clientId}`, { method: "DELETE" });
+      CLIENTS = [];
+      closeClientDetail();
+      loadClients();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
 
   document.getElementById("add-note-btn").onclick = async () => {
     const statusEl = document.getElementById("note-status");

@@ -12,7 +12,11 @@ function assertOwnClient(req, clientId) {
 
 router.get("/:clientId", requireRole("coach"), (req, res) => {
   if (!assertOwnClient(req, req.params.clientId)) return res.status(403).json({ error: "Not your client" });
-  res.json({ notes: getClientNotes(req.params.clientId) });
+  // Notes are stored per-client, not per-coach, so a client who's had more
+  // than one coach (now possible — see relationships.js's remove/re-add
+  // flow) could otherwise surface a *previous* coach's private notes to
+  // whoever coaches them next. Filter to this coach's own notes only.
+  res.json({ notes: getClientNotes(req.params.clientId).filter((n) => n.coachId === req.user.id) });
 });
 
 router.post("/", requireRole("coach"), (req, res) => {
@@ -27,7 +31,9 @@ router.post("/", requireRole("coach"), (req, res) => {
 router.delete("/:clientId/:noteId", requireRole("coach"), (req, res) => {
   const { clientId, noteId } = req.params;
   if (!assertOwnClient(req, clientId)) return res.status(403).json({ error: "Not your client" });
-  res.json({ notes: removeClientNote(clientId, noteId) });
+  const note = getClientNotes(clientId).find((n) => n.id === noteId);
+  if (note && note.coachId !== req.user.id) return res.status(403).json({ error: "Not your note" });
+  res.json({ notes: removeClientNote(clientId, noteId).filter((n) => n.coachId === req.user.id) });
 });
 
 module.exports = router;

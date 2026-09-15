@@ -130,6 +130,26 @@ function addRelationship(coachId, clientId) {
   return setItem("relationships", coachId, [...current, clientId]);
 }
 
+function removeRelationship(coachId, clientId) {
+  return setItem("relationships", coachId, getItem("relationships", coachId, []).filter((id) => id !== clientId));
+}
+
+// ---- Coach -> client connection requests -------------------------------------
+// A coach adding an existing client now sends a request instead of an
+// instant add — the client has to accept before addRelationship() runs.
+
+function addClientRequest(clientId, request) {
+  return setItem("clientRequests", clientId, [...getItem("clientRequests", clientId, []), request]);
+}
+
+function getClientRequests(clientId) {
+  return getItem("clientRequests", clientId, []);
+}
+
+function removeClientRequest(clientId, requestId) {
+  return setItem("clientRequests", clientId, getItem("clientRequests", clientId, []).filter((r) => r.id !== requestId));
+}
+
 // ---- Invites ----------------------------------------------------------------
 
 function saveInvite(token, data) {
@@ -318,6 +338,10 @@ module.exports = {
   getClientIds,
   getCoachIdForClient,
   addRelationship,
+  removeRelationship,
+  addClientRequest,
+  getClientRequests,
+  removeClientRequest,
   saveInvite,
   getInvite,
   addSheet,

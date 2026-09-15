@@ -61,19 +61,81 @@ function activateTab(tab) {
 
 // ---------------- Home ----------------
 
-function loadHome() {
+async function loadHome() {
   const el = document.getElementById("home-coach-card");
   if (MY_COACH) {
     el.innerHTML = `
       <div class="hint">YOUR COACH</div>
       <div style="font-size:20px; font-weight:800; margin-top:4px;">${escapeHtml(MY_COACH.name)}</div>
       <div class="hint" style="margin-top:4px;">${escapeHtml(MY_COACH.bio || "")}</div>
-      <button type="button" class="small-btn secondary" style="margin-top:10px;" data-view-profile="${MY_COACH.id}">View profile &amp; leave a review</button>
+      <div class="flex-row" style="gap:8px; margin-top:10px;">
+        <button type="button" class="small-btn secondary" data-view-profile="${MY_COACH.id}">View profile &amp; leave a review</button>
+        <button type="button" class="small-btn secondary" id="disconnect-coach-btn" style="color:var(--danger);">Disconnect</button>
+      </div>
     `;
     el.querySelector("[data-view-profile]").onclick = () => openCoachProfile(MY_COACH.id, MY_COACH.name, MY_COACH.username);
+    el.querySelector("#disconnect-coach-btn").onclick = async () => {
+      if (!confirm(`Disconnect from ${MY_COACH.name}? You'll keep your own sheets and check-in history, but they'll lose access to you and you won't be able to message them until you reconnect.`)) return;
+      try {
+        await api("/my-coach", { method: "DELETE" });
+        MY_COACH = null;
+        loadHome();
+      } catch (err) {
+        alert(err.message);
+      }
+    };
   } else {
     el.innerHTML = `<p class="hint">You're not connected to a coach yet. Head to "Find a Coach" to browse the feed, or ask your coach for their invite link.</p>`;
   }
+
+  const { requests } = await api("/client-requests");
+  const reqEl = document.getElementById("home-requests-card");
+  if (!requests.length) {
+    reqEl.style.display = "none";
+    reqEl.innerHTML = "";
+    return;
+  }
+  reqEl.style.display = "block";
+  reqEl.innerHTML = requests
+    .map(
+      (r) => `
+        <div class="card" style="margin-bottom:10px;">
+          <div style="font-weight:700;">${escapeHtml(r.coachName)} <span class="hint">@${escapeHtml(r.coachUsername)}</span></div>
+          <div class="hint" style="margin:4px 0 10px;">${escapeHtml(r.bio || "")}</div>
+          <div class="hint">wants to add you as a client.</div>
+          <div class="flex-row" style="gap:8px; margin-top:10px;">
+            <button class="small-btn" data-accept-request="${r.id}">Accept</button>
+            <button class="small-btn secondary" data-decline-request="${r.id}">Decline</button>
+          </div>
+        </div>
+      `
+    )
+    .join("");
+  reqEl.querySelectorAll("[data-accept-request]").forEach((btn) => {
+    btn.onclick = async () => {
+      reqEl.querySelectorAll("button").forEach((b) => (b.disabled = true));
+      try {
+        const { coach } = await api(`/client-requests/${btn.dataset.acceptRequest}/accept`, { method: "POST" });
+        MY_COACH = coach;
+        loadHome();
+      } catch (err) {
+        alert(err.message);
+        reqEl.querySelectorAll("button").forEach((b) => (b.disabled = false));
+      }
+    };
+  });
+  reqEl.querySelectorAll("[data-decline-request]").forEach((btn) => {
+    btn.onclick = async () => {
+      reqEl.querySelectorAll("button").forEach((b) => (b.disabled = true));
+      try {
+        await api(`/client-requests/${btn.dataset.declineRequest}/decline`, { method: "POST" });
+        loadHome();
+      } catch (err) {
+        alert(err.message);
+        reqEl.querySelectorAll("button").forEach((b) => (b.disabled = false));
+      }
+    };
+  });
 }
 
 // ---------------- Calendar ----------------
