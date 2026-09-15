@@ -1,17 +1,34 @@
 const express = require("express");
 const router = express.Router();
+const { rateLimit, ipKeyGenerator } = require("express-rate-limit");
 const { requireRole } = require("../middleware/auth");
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const PLACEHOLDER_KEY = "your_anthropic_api_key_here";
+const MAX_QUESTION_LENGTH = 2000;
 
-router.post("/ask", requireRole("coach"), async (req, res) => {
+// This hits a real, billable API, so it's rate-limited per coach (not just
+// per IP — coaches share networks) to cap worst-case cost from a runaway
+// client, a compromised session, or someone scripting the endpoint.
+const askLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.session?.userId || ipKeyGenerator(req.ip),
+  message: { error: "You've hit the assistant's rate limit for now — try again in a few minutes." },
+});
+
+router.post("/ask", requireRole("coach"), askLimiter, async (req, res) => {
   try {
     if (!ANTHROPIC_API_KEY || ANTHROPIC_API_KEY === PLACEHOLDER_KEY) {
       return res.status(500).json({ error: "The assistant isn't configured yet — set a real ANTHROPIC_API_KEY in .env." });
     }
     const { question } = req.body;
     if (!question?.trim()) return res.status(400).json({ error: "question is required" });
+    if (question.length > MAX_QUESTION_LENGTH) {
+      return res.status(400).json({ error: `Keep questions under ${MAX_QUESTION_LENGTH} characters.` });
+    }
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
