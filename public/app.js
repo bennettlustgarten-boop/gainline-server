@@ -103,6 +103,16 @@ function escapeHtml(value) {
   return div.innerHTML;
 }
 
+// Belt-and-suspenders alongside the Cache-Control: no-store header the
+// server sends for the dashboard pages: some browsers can still restore any
+// page from bfcache (e.g. hitting Back right after logout) without
+// re-running any JS, showing the previous session's page and data with no
+// auth check at all. Forces a real reload from the server in that case,
+// which re-runs requireLogin() from scratch on the dashboard pages.
+window.addEventListener("pageshow", (e) => {
+  if (e.persisted) window.location.reload();
+});
+
 // Fetches the logged-in user, or redirects to /login.html if there isn't one.
 // Pass a role ("coach" or "client") to also bounce anyone logged in as the
 // wrong role to their own dashboard.

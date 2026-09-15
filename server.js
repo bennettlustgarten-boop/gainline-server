@@ -63,6 +63,19 @@ app.use("/api/webhooks", webhookRoutes);
 // Everything else can use normal JSON parsing.
 app.use(express.json());
 
+// Every /api response carries per-session data (who's logged in, their
+// clients, messages, etc.), so none of it may ever be cached. Without this,
+// GET requests like /api/auth/me had no cache header at all — browsers were
+// found to replay a stale cached 200 (from while still logged in) on a
+// history back/forward navigation instead of hitting the network, so a
+// logged-out user hitting Back could land back on a dashboard that still
+// looked fully logged in. This is the actual fix for that; the no-store
+// header on the dashboard HTML pages below is defense-in-depth on top of it.
+app.use("/api", (req, res, next) => {
+  res.set("Cache-Control", "no-store");
+  next();
+});
+
 app.use(
   session({
     store: new SqliteSessionStore(),
@@ -103,6 +116,18 @@ app.use("/api/support", supportRoutes);
 // routes/checkins.js. Ad media is intentionally public (shown to any client
 // browsing "Find a Coach"), so it's served directly off disk here.
 app.use("/media/ads", express.static(path.join(DATA_DIR, "uploads", "ads")));
+
+// The dashboards are gated client-side by requireLogin() in app.js (it
+// redirects to /login.html when there's no session), but without this header
+// the browser can still serve a *cached* copy straight from bfcache/disk
+// cache after logout — e.g. hitting Back and seeing the previous session's
+// page instantly, data and all, with no fetch (and no requireLogin check)
+// ever happening. no-store forces a real reload every time, which also
+// disables bfcache for these pages in every major browser.
+app.use(["/coach-dashboard.html", "/client-dashboard.html"], (req, res, next) => {
+  res.set("Cache-Control", "no-store");
+  next();
+});
 app.use(express.static(path.join(__dirname, "public")));
 
 const PORT = process.env.PORT || 4242;

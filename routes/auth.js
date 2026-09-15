@@ -184,7 +184,15 @@ router.post("/resend-verification", requireAuth, verifyLimiter, async (req, res)
   res.json({ ok: true });
 });
 
-router.post("/verify-email", async (req, res) => {
+const tokenLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many attempts. Please wait a while and try again." },
+});
+
+router.post("/verify-email", tokenLimiter, async (req, res) => {
   const { token } = req.body;
   if (!token) return res.status(400).json({ error: "token is required" });
 
@@ -224,7 +232,7 @@ router.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
   res.json({ ok: true });
 });
 
-router.post("/reset-password", async (req, res) => {
+router.post("/reset-password", tokenLimiter, async (req, res) => {
   const { token, password } = req.body;
   if (!token || !password) return res.status(400).json({ error: "token and password are required" });
   if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters" });
