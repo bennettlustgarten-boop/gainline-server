@@ -12,6 +12,7 @@ const CAMERA_ICON = `<svg width="30" height="30" viewBox="0 0 24 24" fill="none"
   document.getElementById("who-name").textContent = ME.name;
   document.getElementById("who-username").textContent = `@${ME.username}`;
   document.getElementById("logout-btn").addEventListener("click", logout);
+  setupSupportLink();
 
   const notice = sessionStorage.getItem("gainline_notice");
   if (notice) {

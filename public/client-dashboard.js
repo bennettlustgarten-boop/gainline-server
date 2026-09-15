@@ -8,6 +8,7 @@ let sheetFilter = "all";
   document.getElementById("who-name").textContent = ME.name;
   document.getElementById("who-username").textContent = `@${ME.username}`;
   document.getElementById("logout-btn").addEventListener("click", logout);
+  setupSupportLink();
 
   const notice = sessionStorage.getItem("gainline_notice");
   if (notice) {

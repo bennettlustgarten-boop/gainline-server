@@ -19,6 +19,7 @@ const paymentRoutes = require("./routes/payments");
 const calendarRoutes = require("./routes/calendar");
 const reviewRoutes = require("./routes/reviews");
 const noteRoutes = require("./routes/notes");
+const supportRoutes = require("./routes/support");
 const webhookRoutes = require("./routes/webhooks");
 
 const app = express();
@@ -66,6 +67,7 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/calendar", calendarRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/notes", noteRoutes);
+app.use("/api/support", supportRoutes);
 
 // The front-end (plain HTML/CSS/JS) lives in /public and is served from the
 // same origin as the API, so no CORS setup is needed between them.

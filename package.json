@@ -19,6 +19,7 @@
     "express-rate-limit": "^8.7.0",
     "express-session": "^1.18.0",
     "multer": "^2.0.0",
+    "nodemailer": "^10.0.10",
     "stripe": "^16.8.0"
   }
 }

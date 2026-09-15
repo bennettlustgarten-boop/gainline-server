@@ -24,6 +24,74 @@ function qs(name) {
   return new URLSearchParams(window.location.search).get(name);
 }
 
+// The header "Support" link opens a modal with a message box instead of a
+// plain mailto: link — mailto only does something if the OS has a mail
+// client registered, which a lot of machines (and any sandboxed/headless
+// browser) don't have, so clicking it was a silent no-op. The modal posts
+// the message to the server, which emails it to support directly.
+function setupSupportLink() {
+  const link = document.querySelector('a[href^="mailto:"]');
+  if (!link) return;
+  const email = link.getAttribute("href").replace("mailto:", "").split("?")[0];
+
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal-card">
+      <button type="button" class="modal-close" id="support-modal-close">&times;</button>
+      <h2 style="margin-top:0;">Contact support</h2>
+      <p class="hint">Tell us what's going on and we'll get back to you.</p>
+      <label for="support-message">Your question</label>
+      <textarea id="support-message" rows="5" placeholder="What's happening?"></textarea>
+      <label for="support-reply-email">Your email (optional, so we can reply)</label>
+      <input type="email" id="support-reply-email" placeholder="you@example.com" />
+      <button type="button" id="support-send-btn" style="margin-top:12px;">Send</button>
+      <div class="status" id="support-status"></div>
+      <p class="hint" style="margin-top:14px;">Or email us directly: <a href="mailto:${email}" id="support-direct-link">${email}</a></p>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const statusEl = overlay.querySelector("#support-status");
+  const messageEl = overlay.querySelector("#support-message");
+  const replyEl = overlay.querySelector("#support-reply-email");
+  const sendBtn = overlay.querySelector("#support-send-btn");
+
+  const close = () => overlay.classList.remove("open");
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay || e.target.id === "support-modal-close") close();
+  });
+
+  link.addEventListener("click", (e) => {
+    e.preventDefault();
+    statusEl.className = "status";
+    statusEl.textContent = "";
+    overlay.classList.add("open");
+    messageEl.focus();
+  });
+
+  sendBtn.addEventListener("click", async () => {
+    const message = messageEl.value.trim();
+    if (!message) return showStatus(statusEl, "Type your question first.", "error");
+
+    sendBtn.disabled = true;
+    showStatus(statusEl, "Sending...", "info");
+    try {
+      await api("/support", { method: "POST", body: JSON.stringify({ message, replyTo: replyEl.value.trim() }) });
+      showStatus(statusEl, "Sent — we'll get back to you soon.", "info");
+      messageEl.value = "";
+    } catch (err) {
+      showStatus(statusEl, err.message, "error");
+    } finally {
+      sendBtn.disabled = false;
+    }
+  });
+
+  overlay.querySelector("#support-direct-link").addEventListener("click", () => {
+    navigator.clipboard?.writeText(email).catch(() => {});
+  });
+}
+
 // Coach/client names and other user-entered text get rendered into innerHTML
 // in a few places, so escape them first to avoid stored/reflected XSS.
 function escapeHtml(value) {

@@ -3,11 +3,12 @@ const router = express.Router();
 const { requireRole } = require("../middleware/auth");
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const PLACEHOLDER_KEY = "your_anthropic_api_key_here";
 
 router.post("/ask", requireRole("coach"), async (req, res) => {
   try {
-    if (!ANTHROPIC_API_KEY) {
-      return res.status(500).json({ error: "The assistant isn't configured yet — ANTHROPIC_API_KEY is missing." });
+    if (!ANTHROPIC_API_KEY || ANTHROPIC_API_KEY === PLACEHOLDER_KEY) {
+      return res.status(500).json({ error: "The assistant isn't configured yet — set a real ANTHROPIC_API_KEY in .env." });
     }
     const { question } = req.body;
     if (!question?.trim()) return res.status(400).json({ error: "question is required" });
@@ -20,7 +21,7 @@ router.post("/ask", requireRole("coach"), async (req, res) => {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-5",
+        model: "claude-sonnet-5",
         max_tokens: 1000,
         messages: [
           {

@@ -127,6 +127,10 @@ label:first-of-type {
 input[type="text"],
 input[type="email"],
 input[type="number"],
+input[type="password"],
+input[type="date"],
+input[type="datetime-local"],
+textarea,
 select {
   width: 100%;
   padding: 11px 12px;
@@ -135,9 +139,16 @@ select {
   background: var(--surface-2);
   color: var(--text);
   font-size: 15px;
+  font-family: inherit;
+}
+
+input[type="date"],
+input[type="datetime-local"] {
+  color-scheme: dark;
 }
 
 input:focus,
+textarea:focus,
 select:focus {
   outline: none;
   border-color: var(--accent-strong);
