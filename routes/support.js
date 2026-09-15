@@ -4,9 +4,7 @@ const rateLimit = require("express-rate-limit");
 const { getUser } = require("../db");
 const { sendMail, configured } = require("../lib/mailer");
 
-// Resend's sandbox mode (no verified domain yet) only allows sending to the
-// exact-case address that owns the API key — lowercase matches that.
-const SUPPORT_TO = "gainlinesupport@gmail.com";
+const SUPPORT_TO = "GainLineSupport@gmail.com";
 
 // Anyone can hit this — logged in or not (the signup page has a support link
 // before a visitor has an account) — so it's rate-limited by IP to stop spam.
