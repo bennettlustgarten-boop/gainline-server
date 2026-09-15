@@ -75,6 +75,11 @@ function findUserByUsername(username) {
   return Object.values(getCollection("users")).find((u) => u.username?.toLowerCase() === lower) || null;
 }
 
+function findUserByEmail(email) {
+  const lower = email.toLowerCase();
+  return Object.values(getCollection("users")).find((u) => u.email?.toLowerCase() === lower) || null;
+}
+
 function findUserByStripeAccountId(stripeAccountId) {
   return Object.entries(getCollection("users")).find(([, u]) => u.stripeAccountId === stripeAccountId);
 }
@@ -89,6 +94,10 @@ function findUserBySubscriptionId(subscriptionId, field) {
 
 function findUserByEmailVerifyToken(token) {
   return Object.values(getCollection("users")).find((u) => u.emailVerifyToken === token) || null;
+}
+
+function findUserByPasswordResetToken(token) {
+  return Object.values(getCollection("users")).find((u) => u.passwordResetToken === token) || null;
 }
 
 function searchClients(query) {
@@ -301,7 +310,9 @@ module.exports = {
   findUserByStripeAccountId,
   findUserByStripeCustomerId,
   findUserBySubscriptionId,
+  findUserByEmail,
   findUserByEmailVerifyToken,
+  findUserByPasswordResetToken,
   searchClients,
   listOnboardedCoaches,
   getClientIds,

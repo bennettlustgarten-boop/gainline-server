@@ -919,7 +919,8 @@ function sheetCardHtml(s) {
 
 // ---------------- Check-ins ----------------
 
-let templateDraft = { title: "Weekly Check-In", fields: [{ id: uid("f_"), kind: "scale", label: "Energy in the gym" }, { id: uid("f_"), kind: "scale", label: "Hunger levels" }], requireVideo: false, posing: { front: 0, side: 0, back: 0 }, clientId: "" };
+let templateDraft = { title: "Weekly Check-In", fields: [{ id: uid("f_"), kind: "scale", label: "Energy in the gym" }, { id: uid("f_"), kind: "scale", label: "Hunger levels" }], videoCount: 0, posing: { front: 0, side: 0, back: 0 }, clientId: "" };
+const MAX_VIDEO_REQUEST = 6;
 
 async function loadCheckinsTab() {
   if (!CLIENTS.length) CLIENTS = (await api("/clients")).clients;
@@ -947,26 +948,38 @@ function renderCheckinBuilder() {
       <button type="button" class="small-btn secondary" id="add-scale-field">+ 1-10 scale</button>
       <button type="button" class="small-btn secondary" id="add-text-field">+ Text box</button>
     </div>
-    <label class="flex-row" style="margin-top:12px; color:var(--text);">
-      <input type="checkbox" id="tmpl-require-video" ${templateDraft.requireVideo ? "checked" : ""} style="width:auto;" />
-      Require a form-check video with this check-in
-    </label>
+    <div class="hint" style="margin-top:14px;">Form-check videos requested</div>
+    <div class="flex-row" id="video-count-stepper" style="margin-top:6px;"></div>
+    <div class="hint">Set to 0 to skip. Nothing on a check-in is actually required — clients can send fewer than requested, or none at all.</div>
 
-    <div class="hint" style="margin-top:14px;">Required posing photos</div>
+    <div class="hint" style="margin-top:14px;">Posing photos requested</div>
     <div class="flex-row" id="pose-steppers" style="margin-top:6px; gap:22px;"></div>
-    <div class="hint">Set any to 0 to skip that pose. Clients must upload exactly this many photos per pose.</div>
+    <div class="hint">Set any to 0 to skip that pose. This is just a request — clients aren't blocked from sending fewer.</div>
 
     <button id="tmpl-send-btn">${templateDraft.clientId ? `Send to ${escapeHtml(CLIENTS.find((c) => c.id === templateDraft.clientId)?.name || "client")}` : "Send to all clients"}</button>
     <div class="status" id="tmpl-status"></div>
   `;
   document.getElementById("tmpl-recipient").onchange = (e) => { templateDraft.clientId = e.target.value; renderCheckinBuilder(); };
   document.getElementById("tmpl-title").onchange = (e) => { templateDraft.title = e.target.value; };
-  document.getElementById("tmpl-require-video").onchange = (e) => { templateDraft.requireVideo = e.target.checked; };
   document.getElementById("add-scale-field").onclick = () => { templateDraft.fields.push({ id: uid("f_"), kind: "scale", label: "" }); renderCheckinFields(); };
   document.getElementById("add-text-field").onclick = () => { templateDraft.fields.push({ id: uid("f_"), kind: "text", label: "" }); renderCheckinFields(); };
   document.getElementById("tmpl-send-btn").onclick = sendTemplate;
   renderCheckinFields();
+  renderVideoCountStepper();
   renderPoseSteppers();
+}
+
+function renderVideoCountStepper() {
+  const el = document.getElementById("video-count-stepper");
+  el.innerHTML = `
+    <div class="stepper">
+      <button type="button" class="stepper-btn" id="video-count-dec" ${templateDraft.videoCount <= 0 ? "disabled" : ""}>&minus;</button>
+      <span class="stepper-count">${templateDraft.videoCount}</span>
+      <button type="button" class="stepper-btn" id="video-count-inc" ${templateDraft.videoCount >= MAX_VIDEO_REQUEST ? "disabled" : ""}>+</button>
+    </div>
+  `;
+  document.getElementById("video-count-dec").onclick = () => { templateDraft.videoCount = Math.max(0, templateDraft.videoCount - 1); renderVideoCountStepper(); };
+  document.getElementById("video-count-inc").onclick = () => { templateDraft.videoCount = Math.min(MAX_VIDEO_REQUEST, templateDraft.videoCount + 1); renderVideoCountStepper(); };
 }
 
 const POSE_LABELS = { front: "Front", side: "Side", back: "Back" };
@@ -1030,6 +1043,14 @@ async function renderCheckinSubmissions(clientId) {
   listEl.innerHTML = checkinHistoryHtml(submissions);
 }
 
+// Submissions saved before multi-video support have a single `videoFile`
+// string instead of a `videoFiles` array — support both shapes.
+function checkinVideosHtml(s) {
+  const files = s.videoFiles || (s.videoFile ? [s.videoFile] : []);
+  if (!files.length) return "";
+  return `<div class="flex-row" style="flex-wrap:wrap; margin-top:8px;">${files.map((f) => `<video controls style="width:${files.length > 1 ? "48%" : "100%"}; border-radius:8px;" src="/api/checkins/media/${encodeURIComponent(f)}"></video>`).join("")}</div>`;
+}
+
 function checkinHistoryHtml(submissions) {
   return submissions.length
     ? [...submissions].reverse().map((s) => `
@@ -1039,8 +1060,8 @@ function checkinHistoryHtml(submissions) {
             <span class="hint">${fmtDate(s.createdAt)}</span>
           </div>
           <div class="hint" style="margin-top:4px;">Weight: ${escapeHtml(s.weight || "—")}</div>
-          ${s.answers.map((a) => `<div style="font-size:13px; margin-top:2px;"><b>${escapeHtml(a.label)}:</b> ${escapeHtml(a.value)}</div>`).join("")}
-          ${s.videoFile ? `<video controls style="width:100%; margin-top:8px; border-radius:8px;" src="/api/checkins/media/${encodeURIComponent(s.videoFile)}"></video>` : ""}
+          ${s.answers.filter((a) => a.value).map((a) => `<div style="font-size:13px; margin-top:2px;"><b>${escapeHtml(a.label)}:</b> ${escapeHtml(a.value)}</div>`).join("")}
+          ${checkinVideosHtml(s)}
           ${posingPhotosHtml(s.photos)}
         </div>
       `).join("")

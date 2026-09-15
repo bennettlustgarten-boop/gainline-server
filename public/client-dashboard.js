@@ -238,6 +238,7 @@ function sheetCardHtml(s) {
 let checkinTemplates = [];
 let checkinAnswers = {};
 let poseFiles = { front: [], side: [], back: [] }; // File | null per slot
+let videoFiles = []; // File | null per requested video slot
 
 const CAMERA_ICON = `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>`;
 
@@ -252,24 +253,31 @@ async function loadCheckin() {
   const latest = templates[templates.length - 1];
   checkinAnswers = {};
   poseFiles = { front: [], side: [], back: [] };
+  videoFiles = [];
   renderCheckinForm(latest);
 }
 
 function renderCheckinForm(tmpl) {
   const card = document.getElementById("checkin-card");
+  const videoCount = tmpl.videoCount || (tmpl.requireVideo ? 1 : 0);
   card.innerHTML = `
     <div style="font-weight:800;">${escapeHtml(tmpl.title)}</div>
+    <p class="hint">Nothing here is required — fill in what you can and send it, your coach would rather see a partial check-in than none at all.</p>
     <label>Weight</label>
     <input type="text" id="checkin-weight" placeholder="e.g. 168 lbs" />
     <div id="checkin-fields"></div>
-    ${tmpl.requireVideo ? `
-      <label>Form-check video (required)</label>
-      <input type="file" id="checkin-video" accept="video/*" />
+    ${videoCount > 0 ? `
+      <label style="margin-top:12px;">Form-check video${videoCount > 1 ? `s (up to ${videoCount})` : ""}</label>
+      <div class="photo-upload-grid" id="checkin-video-grid"></div>
     ` : ""}
     <div id="checkin-poses"></div>
     <button id="checkin-submit-btn">Submit check-in</button>
     <div class="status" id="checkin-status"></div>
   `;
+  if (videoCount > 0) {
+    videoFiles = Array.from({ length: videoCount }, (_, i) => videoFiles[i] || null);
+    renderVideoGrid(videoCount);
+  }
   const fieldsEl = document.getElementById("checkin-fields");
   fieldsEl.innerHTML = tmpl.fields.map((f) => `
     <div style="margin-top:10px;">
@@ -298,13 +306,38 @@ function renderCheckinForm(tmpl) {
     .filter((pose) => posing[pose] > 0)
     .map((pose) => `
       <div style="margin-top:12px;">
-        <label style="margin:0 0 4px;">${pose.charAt(0).toUpperCase() + pose.slice(1)} pose photos (${posing[pose]} required)</label>
+        <label style="margin:0 0 4px;">${pose.charAt(0).toUpperCase() + pose.slice(1)} pose photos (up to ${posing[pose]})</label>
         <div class="photo-upload-grid" data-pose-grid="${pose}"></div>
       </div>
     `).join("");
   ["front", "side", "back"].filter((pose) => posing[pose] > 0).forEach((pose) => renderPoseGrid(pose, posing[pose]));
 
   document.getElementById("checkin-submit-btn").onclick = () => submitCheckin(tmpl);
+}
+
+const VIDEO_ICON = `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>`;
+
+function renderVideoGrid(count) {
+  const gridEl = document.getElementById("checkin-video-grid");
+  if (!gridEl) return;
+  gridEl.innerHTML = Array.from({ length: count }, (_, i) => {
+    const file = videoFiles[i];
+    return `
+      <div class="photo-upload-box ${file ? "filled" : ""}" data-video-index="${i}">
+        ${file ? `<video src="${URL.createObjectURL(file)}" muted style="width:100%; height:100%; object-fit:cover;"></video>` : VIDEO_ICON}
+        <input type="file" accept="video/*" data-video-file-index="${i}" />
+      </div>
+    `;
+  }).join("");
+  gridEl.querySelectorAll("[data-video-file-index]").forEach((input) => {
+    input.onchange = () => {
+      const idx = Number(input.dataset.videoFileIndex);
+      if (input.files[0]) {
+        videoFiles[idx] = input.files[0];
+        renderVideoGrid(count);
+      }
+    };
+  });
 }
 
 function renderPoseGrid(pose, count) {
@@ -333,33 +366,22 @@ function renderPoseGrid(pose, count) {
 
 async function submitCheckin(tmpl) {
   const statusEl = document.getElementById("checkin-status");
-  const videoInput = document.getElementById("checkin-video");
-  if (tmpl.requireVideo && (!videoInput || !videoInput.files[0])) {
-    showStatus(statusEl, "This check-in requires a form-check video.", "error");
-    return;
-  }
 
-  const posing = tmpl.posing || { front: 0, side: 0, back: 0 };
-  for (const pose of ["front", "side", "back"]) {
-    const required = posing[pose] || 0;
-    const filled = (poseFiles[pose] || []).filter(Boolean).length;
-    if (filled !== required) {
-      showStatus(statusEl, `Add all ${required} ${pose} photo${required === 1 ? "" : "s"}.`, "error");
-      return;
-    }
-  }
-
-  const answers = tmpl.fields.map((f) => ({ id: f.id, label: f.label, value: checkinAnswers[f.id] || (f.kind === "scale" ? "5" : "") }));
+  // Nothing on this form is required — a client can send whatever they
+  // have (even a totally blank check-in) and their coach still gets it,
+  // rather than being blocked from sending anything at all.
+  const answers = tmpl.fields.map((f) => ({ id: f.id, label: f.label, value: checkinAnswers[f.id] || "" }));
 
   const formData = new FormData();
   formData.append("title", tmpl.title);
   formData.append("weight", document.getElementById("checkin-weight").value);
   formData.append("answers", JSON.stringify(answers));
-  if (videoInput && videoInput.files[0]) formData.append("video", videoInput.files[0]);
+
+  (videoFiles || []).filter(Boolean).forEach((file) => formData.append("video", file));
 
   const photoMeta = [];
   for (const pose of ["front", "side", "back"]) {
-    (poseFiles[pose] || []).forEach((file) => {
+    (poseFiles[pose] || []).filter(Boolean).forEach((file) => {
       formData.append("photos", file);
       photoMeta.push({ pose });
     });
@@ -368,10 +390,15 @@ async function submitCheckin(tmpl) {
 
   try {
     await api("/checkins/submissions", { method: "POST", body: formData });
-    showStatus(statusEl, "Check-in submitted!", "info");
     checkinAnswers = {};
     poseFiles = { front: [], side: [], back: [] };
+    videoFiles = [];
+    // Re-rendering the form wipes #checkin-status along with it (it's part
+    // of the same innerHTML), so the confirmation has to show up AFTER
+    // that reset, on the fresh form — showing it first and immediately
+    // re-rendering erased it before anyone could see it.
     renderCheckinForm(tmpl);
+    showStatus(document.getElementById("checkin-status"), "Check-in submitted!", "info");
   } catch (err) {
     showStatus(statusEl, err.message, "error");
   }

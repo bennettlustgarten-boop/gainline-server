@@ -39,6 +39,15 @@ function sanitizePosing(posing) {
   return out;
 }
 
+// Templates saved before multi-video support only have the old boolean
+// requireVideo — treat that as "1 video" so old templates keep working.
+function sanitizeVideoCount(template) {
+  if (template && typeof template.videoCount !== "undefined") {
+    return Math.min(Math.max(Math.round(Number(template.videoCount) || 0), 0), MAX_POSES_PER_KEY);
+  }
+  return template?.requireVideo ? 1 : 0;
+}
+
 // Filenames are prefixed with the client's id so the media-serving route can
 // check ownership without a separate lookup table. "--" (not "_") separates
 // it from the random suffix, since client ids themselves contain
@@ -52,7 +61,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({
   storage,
-  limits: { fileSize: 75 * 1024 * 1024, files: 1 + MAX_POSES_PER_KEY * POSE_KEYS.length },
+  limits: { fileSize: 75 * 1024 * 1024, files: MAX_POSES_PER_KEY + MAX_POSES_PER_KEY * POSE_KEYS.length },
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     if (file.fieldname === "video") {
@@ -71,7 +80,7 @@ const upload = multer({
 });
 
 router.post("/templates", requireRole("coach"), (req, res) => {
-  const { title, fields, requireVideo, posing, clientId } = req.body;
+  const { title, fields, videoCount, posing, clientId } = req.body;
   if (!title?.trim() || !Array.isArray(fields) || fields.some((f) => !f.label?.trim())) {
     return res.status(400).json({ error: "Title and labeled fields are required" });
   }
@@ -82,8 +91,8 @@ router.post("/templates", requireRole("coach"), (req, res) => {
     id: uid("tmpl_"),
     title: title.trim(),
     fields: fields.map((f) => ({ id: f.id || uid("f_"), kind: f.kind === "text" ? "text" : "scale", label: f.label.trim() })),
-    requireVideo: !!requireVideo,
-    posing: sanitizePosing(posing), // { front, side, back } — number of photos required per pose
+    videoCount: Math.min(Math.max(Math.round(Number(videoCount) || 0), 0), MAX_POSES_PER_KEY), // how many form-check videos this template asks for
+    posing: sanitizePosing(posing), // { front, side, back } — number of photos requested per pose
     clientId: clientId || null, // null = sent to every client; otherwise just this one
     createdAt: Date.now(),
   };
@@ -93,9 +102,10 @@ router.post("/templates", requireRole("coach"), (req, res) => {
 router.get("/templates", requireAuth, (req, res) => {
   const coachId = req.user.role === "coach" ? req.user.id : getCoachIdForClient(req.user.id);
   if (!coachId) return res.json({ templates: [] });
-  // Old templates (saved before posing photos existed) won't have a posing
-  // field — default it so the client form always has something to render.
-  let templates = getCheckinTemplates(coachId).map((t) => ({ ...t, posing: sanitizePosing(t.posing) }));
+  // Old templates (saved before posing photos / multi-video existed) won't
+  // have these fields — default them so the client form always has
+  // something sensible to render.
+  let templates = getCheckinTemplates(coachId).map((t) => ({ ...t, posing: sanitizePosing(t.posing), videoCount: sanitizeVideoCount(t) }));
   // A client should only ever see broadcast templates (clientId: null) and
   // ones sent specifically to them — never ones aimed at a different client.
   if (req.user.role === "client") {
@@ -108,7 +118,7 @@ router.post(
   "/submissions",
   requireRole("client"),
   (req, res, next) => {
-    upload.fields([{ name: "video", maxCount: 1 }, { name: "photos", maxCount: MAX_POSES_PER_KEY * POSE_KEYS.length }])(req, res, (err) => {
+    upload.fields([{ name: "video", maxCount: MAX_POSES_PER_KEY }, { name: "photos", maxCount: MAX_POSES_PER_KEY * POSE_KEYS.length }])(req, res, (err) => {
       if (err) return res.status(400).json({ error: err.message });
       next();
     });
@@ -137,7 +147,7 @@ router.post(
         id: uid("chk_"),
         title: title || "Check-in",
         weight: weight || "",
-        videoFile: req.files?.video?.[0]?.filename || null,
+        videoFiles: (req.files?.video || []).map((f) => f.filename),
         photos,
         answers: parsedAnswers,
         createdAt: Date.now(),

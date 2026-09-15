@@ -2,7 +2,17 @@ const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcryptjs");
 const rateLimit = require("express-rate-limit");
-const { getUser, saveUser, findUserByUsername, findUserByEmailVerifyToken, getInvite, addRelationship, getClientIds } = require("../db");
+const {
+  getUser,
+  saveUser,
+  findUserByUsername,
+  findUserByEmail,
+  findUserByEmailVerifyToken,
+  findUserByPasswordResetToken,
+  getInvite,
+  addRelationship,
+  getClientIds,
+} = require("../db");
 const { uid } = require("../lib/uid");
 const { publicUser } = require("../lib/publicUser");
 const { tierForCoach } = require("../lib/tiers");
@@ -13,6 +23,7 @@ const USERNAME_RE = /^[a-z0-9_.]{3,20}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const APP_URL = process.env.APP_URL || "http://localhost:4242";
 const VERIFY_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 
 async function sendVerificationEmail(user) {
   if (!transporter || !user.email) return;
@@ -26,6 +37,21 @@ async function sendVerificationEmail(user) {
     });
   } catch (err) {
     console.error("Failed to send verification email:", err.message);
+  }
+}
+
+async function sendPasswordResetEmail(user) {
+  if (!transporter || !user.email) return;
+  const link = `${APP_URL}/reset-password.html?token=${user.passwordResetToken}`;
+  try {
+    await transporter.sendMail({
+      from: SUPPORT_EMAIL_USER,
+      to: user.email,
+      subject: "Reset your Gainline password",
+      text: `Hi ${user.name},\n\nSomeone (hopefully you) asked to reset your Gainline password. Click the link below to choose a new one:\n\n${link}\n\nThis link expires in 1 hour. If you didn't request this, you can safely ignore this email — your password won't change.`,
+    });
+  } catch (err) {
+    console.error("Failed to send password reset email:", err.message);
   }
 }
 
@@ -171,6 +197,48 @@ router.post("/verify-email", async (req, res) => {
   }
 
   saveUser(user.id, { emailVerified: true, emailVerifyToken: null, emailVerifyTokenExpires: null });
+  res.json({ ok: true });
+});
+
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many reset requests from this network. Please wait a while and try again." },
+});
+
+// Always responds the same way whether or not the email is on file —
+// otherwise this endpoint would let anyone check which emails have an
+// account here just by watching which responses differ.
+router.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
+  const { email } = req.body;
+  if (!email?.trim()) return res.status(400).json({ error: "email is required" });
+
+  const user = findUserByEmail(email.trim());
+  if (user) {
+    const updated = saveUser(user.id, {
+      passwordResetToken: uid("prt_"),
+      passwordResetTokenExpires: Date.now() + RESET_TOKEN_TTL_MS,
+    });
+    await sendPasswordResetEmail(updated);
+  }
+  res.json({ ok: true });
+});
+
+router.post("/reset-password", async (req, res) => {
+  const { token, password } = req.body;
+  if (!token || !password) return res.status(400).json({ error: "token and password are required" });
+  if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters" });
+
+  const user = findUserByPasswordResetToken(token);
+  if (!user) return res.status(400).json({ error: "That reset link is invalid or has already been used." });
+  if (user.passwordResetTokenExpires && user.passwordResetTokenExpires < Date.now()) {
+    return res.status(400).json({ error: "That reset link has expired — request a new one." });
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  saveUser(user.id, { passwordHash, passwordResetToken: null, passwordResetTokenExpires: null });
   res.json({ ok: true });
 });
 
