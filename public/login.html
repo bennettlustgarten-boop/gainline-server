@@ -27,11 +27,14 @@
     </form>
 
     <p class="hint">No account yet? <a href="/signup.html">Sign up</a></p>
+    <p class="hint" style="margin-top:8px;">Having trouble with the site? Contact <a href="mailto:GainLineSupport@gmail.com">GainLineSupport@gmail.com</a></p>
+
     <a class="back-link" href="/">&larr; Back home</a>
   </main>
 
   <script src="/app.js"></script>
   <script>
+    setupSupportLink();
     const form = document.getElementById("login-form");
     const statusEl = document.getElementById("status");
     const submitBtn = document.getElementById("submit-btn");

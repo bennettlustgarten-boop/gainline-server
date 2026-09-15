@@ -1,7 +1,7 @@
 require("dotenv").config();
 const path = require("path");
 const express = require("express");
-const cors = require("cors");
+const helmet = require("helmet");
 const session = require("express-session");
 const SqliteSessionStore = require("./lib/sqliteSessionStore");
 
@@ -29,7 +29,30 @@ const app = express();
 // (or any) reverse proxy in production.
 app.set("trust proxy", 1);
 
-app.use(cors({ origin: true, credentials: true }));
+// This app's front-end (/public) and API are served from the same Express
+// process, so there's no legitimate cross-origin caller to allow — no CORS
+// middleware needed, and none configured. Security headers instead:
+// helmet sets X-Content-Type-Options, X-Frame-Options, a restrictive CSP,
+// etc. CSP allows 'unsafe-inline' for scripts/styles because every page
+// here uses inline <script> blocks and inline style="" attributes rather
+// than a build step — tightening that further would mean a bigger frontend
+// refactor (external files + nonces), not just a config change.
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "blob:"],
+        mediaSrc: ["'self'", "blob:"],
+        connectSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        frameAncestors: ["'self'"],
+      },
+    },
+  })
+);
 
 // The Stripe webhook route needs the RAW body to verify signatures, so it's
 // mounted before express.json() and given its own raw parser.
@@ -48,6 +71,10 @@ app.use(
     cookie: {
       httpOnly: true,
       sameSite: "lax",
+      // "auto" only marks the cookie Secure when the request actually came in
+      // over HTTPS (respecting "trust proxy" above) — stays usable on
+      // localhost http:// in dev, and locks it down once deployed.
+      secure: "auto",
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     },
   })
@@ -69,8 +96,7 @@ app.use("/api/reviews", reviewRoutes);
 app.use("/api/notes", noteRoutes);
 app.use("/api/support", supportRoutes);
 
-// The front-end (plain HTML/CSS/JS) lives in /public and is served from the
-// same origin as the API, so no CORS setup is needed between them.
+// The front-end (plain HTML/CSS/JS) lives in /public, served from here too.
 // NOTE: check-in videos/photos live in /uploads/checkins, NOT here — they're
 // private and only reachable through the authenticated route in
 // routes/checkins.js. Ad media is intentionally public (shown to any client

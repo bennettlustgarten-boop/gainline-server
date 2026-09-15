@@ -61,6 +61,9 @@ function setupSupportLink() {
   overlay.addEventListener("click", (e) => {
     if (e.target === overlay || e.target.id === "support-modal-close") close();
   });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") close();
+  });
 
   link.addEventListener("click", (e) => {
     e.preventDefault();

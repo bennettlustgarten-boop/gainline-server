@@ -12,6 +12,7 @@ const {
   getClientIds,
 } = require("../db");
 const { uid } = require("../lib/uid");
+const { isRecognizedImage } = require("../lib/fileSignature");
 const { requireAuth, requireRole } = require("../middleware/auth");
 
 const POSE_KEYS = ["front", "side", "back"];
@@ -19,6 +20,15 @@ const MAX_POSES_PER_KEY = 6;
 
 const UPLOAD_DIR = path.join(__dirname, "..", "uploads", "checkins");
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+
+// The client-supplied mimetype is trivially spoofable, so uploads are also
+// gated on a fixed extension allowlist — and pose photos on the file's
+// actual magic bytes below — rather than trusting the mimetype alone. SVG
+// is deliberately excluded even though browsers treat it as an image: it
+// can carry <script>, which would be a stored-XSS vector once served back
+// to the client or their coach.
+const IMAGE_EXTS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp"]);
+const VIDEO_EXTS = new Set([".mp4", ".mov", ".webm", ".m4v"]);
 
 function sanitizePosing(posing) {
   const out = {};
@@ -36,7 +46,7 @@ function sanitizePosing(posing) {
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).slice(0, 10);
+    const ext = path.extname(file.originalname).slice(0, 10).toLowerCase();
     cb(null, `${req.user.id}--${uid()}${ext}`);
   },
 });
@@ -44,10 +54,15 @@ const upload = multer({
   storage,
   limits: { fileSize: 200 * 1024 * 1024, files: 1 + MAX_POSES_PER_KEY * POSE_KEYS.length },
   fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
     if (file.fieldname === "video") {
-      if (!file.mimetype.startsWith("video/")) return cb(new Error("The form-check upload must be a video file"));
+      if (!file.mimetype.startsWith("video/") || !VIDEO_EXTS.has(ext)) {
+        return cb(new Error("The form-check upload must be an MP4, MOV, or WEBM video"));
+      }
     } else if (file.fieldname === "photos") {
-      if (!file.mimetype.startsWith("image/")) return cb(new Error("Pose uploads must be image files"));
+      if (!file.mimetype.startsWith("image/") || !IMAGE_EXTS.has(ext)) {
+        return cb(new Error("Pose uploads must be JPG, PNG, GIF, or WEBP images"));
+      }
     } else {
       return cb(new Error("Unexpected file field"));
     }
@@ -105,6 +120,17 @@ router.post(
       const parsedPhotoMeta = typeof photoMeta === "string" ? JSON.parse(photoMeta) : photoMeta || []; // [{pose: "front"|"side"|"back"}, ...] same order as uploaded photo files
 
       const photoFiles = req.files?.photos || [];
+      const allUploaded = [...photoFiles, ...(req.files?.video || [])];
+      for (const f of photoFiles) {
+        const head = Buffer.alloc(12);
+        const fd = fs.openSync(f.path, "r");
+        fs.readSync(fd, head, 0, 12, 0);
+        fs.closeSync(fd);
+        if (!isRecognizedImage(head)) {
+          allUploaded.forEach((u) => fs.unlink(u.path, () => {}));
+          return res.status(400).json({ error: "One of those photos doesn't look like a real image" });
+        }
+      }
       const photos = photoFiles.map((f, i) => ({ pose: parsedPhotoMeta[i]?.pose || "front", file: f.filename }));
 
       const submission = {

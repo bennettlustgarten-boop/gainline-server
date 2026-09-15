@@ -6,6 +6,7 @@ const multer = require("multer");
 const { listAds, upsertAd, removeAd, getUser, getClientIds, getReviews } = require("../db");
 const { tierForCoach, adsIncluded } = require("../lib/tiers");
 const { uid } = require("../lib/uid");
+const { isRecognizedImage } = require("../lib/fileSignature");
 const { requireRole } = require("../middleware/auth");
 
 // Ad media is genuinely public (it's shown to any client browsing "Find a
@@ -14,16 +15,28 @@ const { requireRole } = require("../middleware/auth");
 const UPLOAD_DIR = path.join(__dirname, "..", "uploads", "ads");
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
+// The client-supplied mimetype is trivially spoofable, so this is also
+// gated on a fixed extension allowlist — and, for images, on the file's
+// actual magic bytes below — rather than trusting the mimetype alone.
+// SVG is deliberately excluded even though browsers treat it as an image:
+// it can carry <script> and would be a stored-XSS vector once served back
+// to other users' browsers.
+const IMAGE_EXTS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp"]);
+const VIDEO_EXTS = new Set([".mp4", ".mov", ".webm", ".m4v"]);
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
-  filename: (req, file, cb) => cb(null, `${uid()}${path.extname(file.originalname).slice(0, 10)}`),
+  filename: (req, file, cb) => cb(null, `${uid()}${path.extname(file.originalname).slice(0, 10).toLowerCase()}`),
 });
 const upload = multer({
   storage,
   limits: { fileSize: 200 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (!file.mimetype.startsWith("image/") && !file.mimetype.startsWith("video/")) {
-      return cb(new Error("Ad media must be a photo or video file"));
+    const ext = path.extname(file.originalname).toLowerCase();
+    const isImage = file.mimetype.startsWith("image/") && IMAGE_EXTS.has(ext);
+    const isVideo = file.mimetype.startsWith("video/") && VIDEO_EXTS.has(ext);
+    if (!isImage && !isVideo) {
+      return cb(new Error("Ad media must be a JPG, PNG, GIF, WEBP photo or an MP4, MOV, WEBM video"));
     }
     cb(null, true);
   },
@@ -72,6 +85,17 @@ router.post(
     }
     const { caption, mediaNote } = req.body;
     if (!caption?.trim()) return res.status(400).json({ error: "caption is required" });
+
+    if (req.file && req.file.mimetype.startsWith("image/")) {
+      const head = Buffer.alloc(12);
+      const fd = fs.openSync(req.file.path, "r");
+      fs.readSync(fd, head, 0, 12, 0);
+      fs.closeSync(fd);
+      if (!isRecognizedImage(head)) {
+        fs.unlink(req.file.path, () => {});
+        return res.status(400).json({ error: "That file doesn't look like a real image" });
+      }
+    }
 
     const existing = listAds().find((a) => a.coachId === req.user.id);
     const payload = {
