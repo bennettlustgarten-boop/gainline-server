@@ -33,6 +33,8 @@ const CAMERA_ICON = `<svg width="30" height="30" viewBox="0 0 24 24" fill="none"
   }
   if (checkout === "cancelled") showNotice("Checkout was cancelled — no charge was made.", true);
 
+  if (!ME.coachSurveyComplete) await showOnboardingSurvey();
+
   setupTabs();
   setupLightbox();
   const initialTab = qs("tab") || "overview";
@@ -44,6 +46,142 @@ function showNotice(text, isWarn) {
   el.style.display = "block";
   el.style.background = isWarn ? "rgba(248,113,113,0.1)" : "rgba(94,234,212,0.1)";
   el.textContent = text;
+}
+
+// ---------------- Post-signup onboarding survey ----------------
+
+const CLIENT_COUNT_BANDS = [
+  { value: "0", label: "0 — just starting out" },
+  { value: "1-2", label: "1–2 clients" },
+  { value: "3-5", label: "3–5 clients" },
+  { value: "6-15", label: "6–15 clients" },
+  { value: "16+", label: "16+ clients" },
+];
+
+const BAND_TO_RECOMMENDED_TIER = { "0": "free", "1-2": "free", "3-5": "t40", "6-15": "t80", "16+": "t140" };
+
+// Shown once, right after a coach's first login — two quick questions, then
+// every membership tier with its trial offer, so they can pick one on the
+// spot instead of having to go find the Membership tab later.
+function showOnboardingSurvey() {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay open";
+    overlay.innerHTML = `<div class="modal-card" style="max-width:560px;"><div id="onboarding-body"></div></div>`;
+    document.body.appendChild(overlay);
+    const body = overlay.querySelector("#onboarding-body");
+
+    function onEscape(e) {
+      if (e.key === "Escape") skipAndClose();
+    }
+
+    function close() {
+      document.removeEventListener("keydown", onEscape);
+      overlay.remove();
+      resolve();
+    }
+
+    async function skipAndClose() {
+      try {
+        await api("/coach/survey", { method: "POST", body: JSON.stringify({ skip: true }) });
+      } catch {}
+      close();
+    }
+
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) skipAndClose();
+    });
+    document.addEventListener("keydown", onEscape);
+
+    function renderQuestions() {
+      body.innerHTML = `
+        <h2 style="margin-top:0;">Welcome to Gainline!</h2>
+        <p class="hint">A couple quick questions to help set up your account.</p>
+
+        <label>How many clients do you currently have?</label>
+        <div class="flex-row" id="ob-client-count" style="flex-wrap:wrap;">
+          ${CLIENT_COUNT_BANDS.map((b) => `<button type="button" class="small-btn button secondary" data-band="${b.value}">${b.label}</button>`).join("")}
+        </div>
+
+        <label style="margin-top:14px;">What type of coaching do you do?</label>
+        <input type="text" id="ob-coaching-type" placeholder="e.g. strength training, online nutrition coaching..." />
+
+        <button id="ob-continue-btn" style="margin-top:16px;" disabled>Continue</button>
+        <div style="margin-top:10px;"><a href="#" id="ob-skip-link" class="hint">Skip for now</a></div>
+      `;
+
+      let selectedBand = null;
+      const bandButtons = body.querySelectorAll("[data-band]");
+      bandButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          selectedBand = btn.dataset.band;
+          bandButtons.forEach((b) => b.classList.toggle("secondary", b !== btn));
+          document.getElementById("ob-continue-btn").disabled = false;
+        });
+      });
+
+      document.getElementById("ob-continue-btn").addEventListener("click", async () => {
+        const coachingType = document.getElementById("ob-coaching-type").value.trim();
+        try {
+          await api("/coach/survey", { method: "POST", body: JSON.stringify({ clientCountBand: selectedBand, coachingType }) });
+        } catch {}
+        renderTierPicker(selectedBand);
+      });
+
+      document.getElementById("ob-skip-link").addEventListener("click", async (e) => {
+        e.preventDefault();
+        try {
+          await api("/coach/survey", { method: "POST", body: JSON.stringify({ skip: true }) });
+        } catch {}
+        close();
+      });
+    }
+
+    async function renderTierPicker(band) {
+      body.innerHTML = `<p class="hint">Loading plans...</p>`;
+      const { tiers, trialDays } = await api("/platform/status");
+      const recommended = BAND_TO_RECOMMENDED_TIER[band] || "free";
+
+      body.innerHTML = `
+        <h2 style="margin-top:0;">Pick your plan</h2>
+        <p class="hint">Every paid plan includes a ${trialDays}-day free trial — cancel before it ends and you won't be charged.</p>
+        <div class="tier-ladder">
+          ${tiers.map((t) => `
+            <div class="tier-col ${t.id === recommended ? "active" : ""}" data-tier="${t.id}">
+              ${t.id === recommended ? `<div class="pill ok" style="margin-bottom:6px;">Recommended</div>` : ""}
+              <div class="label">${escapeHtml(t.label)}</div>
+              <div class="meta">${t.max === null ? "&infin;" : `&le;${t.max}`} &middot; ${t.price === 0 ? "Free" : `$${t.price}/mo`}</div>
+              <button type="button" class="small-btn" style="margin-top:8px;" data-choose-tier="${t.id}">${t.price === 0 ? "Start free" : `Start ${trialDays}-day trial`}</button>
+            </div>
+          `).join("")}
+        </div>
+        <div class="status" id="ob-tier-status"></div>
+        <div style="margin-top:14px;"><a href="#" id="ob-later-link" class="hint">I'll choose later</a></div>
+      `;
+
+      body.querySelectorAll("[data-choose-tier]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const statusEl = document.getElementById("ob-tier-status");
+          btn.disabled = true;
+          try {
+            const { url } = await api("/platform/membership/checkout", { method: "POST", body: JSON.stringify({ tierId: btn.dataset.chooseTier }) });
+            if (url) window.location.href = url;
+            else close();
+          } catch (err) {
+            showStatus(statusEl, err.message, "error");
+            btn.disabled = false;
+          }
+        });
+      });
+
+      document.getElementById("ob-later-link").addEventListener("click", (e) => {
+        e.preventDefault();
+        close();
+      });
+    }
+
+    renderQuestions();
+  });
 }
 
 // ---------------- Tabs ----------------
@@ -1234,18 +1372,18 @@ function bindAdMediaInput() {
 // ---------------- Membership ----------------
 
 async function loadMembershipTab() {
-  const { tiers, membershipTier, membershipStatus } = await api("/platform/status");
+  const { tiers, membershipTier, membershipStatus, hasUsedTrial, trialDays } = await api("/platform/status");
   const card = document.getElementById("membership-card");
   card.innerHTML = `
     <h2 style="margin-top:0;">Membership</h2>
-    <p class="hint">Your plan determines how many clients you can have.</p>
+    <p class="hint">Your plan determines how many clients you can have.${!hasUsedTrial ? ` Paid plans include a ${trialDays}-day free trial.` : ""}</p>
     <div class="tier-ladder">
       ${tiers.map((t) => `
         <div class="tier-col ${t.id === membershipTier ? "active" : ""}" data-tier="${t.id}">
           <div class="label">${escapeHtml(t.label)}</div>
           <div class="meta">${t.max === null ? "&infin;" : `&le;${t.max}`} &middot; ${t.price === 0 ? "Free" : `$${t.price}/mo`}</div>
           ${t.max === null ? `<div class="hint" style="margin-top:4px;">Includes free ad listing</div>` : ""}
-          ${t.id === membershipTier ? `<div class="hint" style="margin-top:6px;">Current${membershipStatus ? ` (${escapeHtml(membershipStatus)})` : ""}</div>` : `<button type="button" class="small-btn ${t.price === 0 ? "secondary button" : ""}" style="margin-top:8px;" data-choose-tier="${t.id}">${t.price === 0 ? "Cancel membership" : "Choose"}</button>`}
+          ${t.id === membershipTier ? `<div class="hint" style="margin-top:6px;">Current${membershipStatus ? ` (${escapeHtml(membershipStatus)})` : ""}</div>` : `<button type="button" class="small-btn ${t.price === 0 ? "secondary button" : ""}" style="margin-top:8px;" data-choose-tier="${t.id}">${t.price === 0 ? "Cancel membership" : !hasUsedTrial ? `Start ${trialDays}-day trial` : "Choose"}</button>`}
         </div>
       `).join("")}
     </div>

@@ -58,4 +58,20 @@ router.get("/list", (req, res) => {
   res.json({ coaches: listOnboardedCoaches() });
 });
 
+const CLIENT_COUNT_BANDS = ["0", "1-2", "3-5", "6-15", "16+"];
+
+// One-time post-signup survey (client count + coaching type) shown on first
+// login. Answers just inform the tier recommendation shown right after —
+// nothing here gates access, so a skipped survey still marks complete.
+router.post("/survey", requireRole("coach"), (req, res) => {
+  const { clientCountBand, coachingType, skip } = req.body;
+  const patch = { coachSurveyComplete: true };
+  if (!skip) {
+    if (clientCountBand && CLIENT_COUNT_BANDS.includes(clientCountBand)) patch.clientCountBand = clientCountBand;
+    if (typeof coachingType === "string") patch.coachingType = coachingType.trim().slice(0, 200);
+  }
+  const user = saveUser(req.user.id, patch);
+  res.json({ ok: true, clientCountBand: user.clientCountBand, coachingType: user.coachingType });
+});
+
 module.exports = router;

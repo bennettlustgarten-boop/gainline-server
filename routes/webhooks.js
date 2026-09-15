@@ -38,6 +38,7 @@ router.post("/stripe", async (req, res) => {
           membershipTier: session.metadata.tierId,
           membershipStatus: "active",
           membershipSubId: session.subscription,
+          hasUsedTrial: true,
         });
       } else if (purpose === "ads") {
         saveUser(session.metadata.userId, { adStatus: "active", adSubId: session.subscription });

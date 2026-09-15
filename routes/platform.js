@@ -7,6 +7,7 @@ const { requireRole } = require("../middleware/auth");
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const APP_URL = process.env.APP_URL || "http://localhost:4242";
+const MEMBERSHIP_TRIAL_DAYS = 10;
 
 // These are subscriptions on the PLATFORM's own Stripe account (no Connect,
 // no transfer_data) — this is money coaches pay Gainline directly, separate
@@ -51,6 +52,9 @@ router.get("/status", requireRole("coach"), async (req, res) => {
     adStatus: user.adStatus || null,
     adsFreeWithTier: user.membershipTier === UNLIMITED_TIER_ID,
     adsIncluded: adsIncluded(user),
+    hasUsedTrial: !!user.hasUsedTrial,
+    trialDays: MEMBERSHIP_TRIAL_DAYS,
+    coachSurveyComplete: !!user.coachSurveyComplete,
   });
 });
 
@@ -71,7 +75,12 @@ router.post("/confirm", requireRole("coach"), async (req, res) => {
     }
 
     if (session.metadata.purpose === "membership") {
-      saveUser(req.user.id, { membershipTier: session.metadata.tierId, membershipStatus: "active", membershipSubId: session.subscription });
+      saveUser(req.user.id, {
+        membershipTier: session.metadata.tierId,
+        membershipStatus: "active",
+        membershipSubId: session.subscription,
+        hasUsedTrial: true,
+      });
     } else if (session.metadata.purpose === "ads") {
       saveUser(req.user.id, { adStatus: "active", adSubId: session.subscription });
     }
@@ -95,6 +104,11 @@ router.post("/membership/checkout", requireRole("coach"), async (req, res) => {
       return res.json({ ok: true });
     }
 
+    // Every coach gets one 10-day free trial the first time they pick a paid
+    // tier — tracked with hasUsedTrial so switching tiers later (or
+    // cancelling and resubscribing) doesn't grant another one.
+    const eligibleForTrial = !req.user.hasUsedTrial;
+
     const customerId = await getOrCreateCustomer(req.user);
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
@@ -113,7 +127,10 @@ router.post("/membership/checkout", requireRole("coach"), async (req, res) => {
       success_url: `${APP_URL}/coach-dashboard.html?tab=membership&checkout=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${APP_URL}/coach-dashboard.html?tab=membership&checkout=cancelled`,
       metadata: { purpose: "membership", userId: req.user.id, tierId: tier.id },
-      subscription_data: { metadata: { purpose: "membership", userId: req.user.id, tierId: tier.id } },
+      subscription_data: {
+        metadata: { purpose: "membership", userId: req.user.id, tierId: tier.id },
+        ...(eligibleForTrial ? { trial_period_days: MEMBERSHIP_TRIAL_DAYS } : {}),
+      },
     });
     res.json({ url: session.url });
   } catch (err) {
