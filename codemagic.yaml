@@ -1,0 +1,49 @@
+workflows:
+  ios-app-store:
+    name: Gainline iOS — App Store
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: gainline_app_store_connect
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: online.gainlineapp.app
+      vars:
+        APP_STORE_APPLE_ID: 0 # set this to the App Store Connect app's numeric Apple ID once the app record is created
+      xcode: latest
+      cocoapods: default
+      node: latest
+    scripts:
+      - name: Install npm dependencies
+        script: |
+          cd mobile
+          npm install
+      - name: Sync Capacitor iOS project
+        script: |
+          cd mobile
+          npx cap sync ios
+      - name: Install CocoaPods dependencies
+        script: |
+          cd mobile/ios/App
+          pod install
+      - name: Set up code signing
+        script: |
+          xcode-project use-profiles
+      - name: Increment build number
+        script: |
+          cd mobile/ios/App
+          agvtool new-version -all $(($(app-store-connect get-latest-app-store-build-number "$APP_STORE_APPLE_ID") + 1))
+      - name: Build .ipa
+        script: |
+          xcode-project build-ipa \
+            --workspace mobile/ios/App/App.xcworkspace \
+            --scheme App
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        submit_to_app_store: false

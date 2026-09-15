@@ -1,0 +1,12 @@
+{
+  "appId": "online.gainlineapp.app",
+  "appName": "Gainline",
+  "webDir": "www",
+  "server": {
+    "url": "https://gainlineapp.online",
+    "cleartext": false
+  },
+  "ios": {
+    "contentInset": "automatic"
+  }
+}
