@@ -44,10 +44,20 @@ a.brand {
   font-weight: 700;
   font-size: 18px;
   letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
 }
 
 a.brand span {
   color: var(--accent);
+}
+
+.brand-icon {
+  width: 15px;
+  height: 26px;
+  margin-right: 7px;
+  color: var(--text);
+  flex-shrink: 0;
 }
 
 nav.site a {
