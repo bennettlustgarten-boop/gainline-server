@@ -323,6 +323,89 @@ function recordPayment(payment) {
   setItem("payments", "_all", list);
 }
 
+function getAllPayments() {
+  return getItem("payments", "_all", []);
+}
+
+// ---- Admin -------------------------------------------------------------------
+
+function listAllUsers() {
+  return Object.values(getCollection("users"));
+}
+
+// Deletes a user and everything tied to them — not just the users row, but
+// their relationships, sheets, check-ins, messages, notes, payment plans,
+// calendar data, reviews, ads, and pending invites too. Shared by the
+// scripts/delete-user.js CLI and the admin dashboard's delete-user route, so
+// there's exactly one place this cascade logic lives.
+function deleteUserCascade(userId) {
+  const user = getUser(userId);
+  if (!user) return null;
+
+  const deleted = [`users/${userId}`];
+  deleteItem("users", userId);
+
+  if (user.role === "coach") {
+    for (const key of ["relationships", "checkinTemplates", "calendarEvents", "calendarEventTypes", "reviews"]) {
+      if (getItem(key, userId, null) !== null) {
+        deleted.push(`${key}/${userId}`);
+        deleteItem(key, userId);
+      }
+    }
+    const ads = getItem("ads", "_all", []);
+    if (ads.some((a) => a.coachId === userId)) {
+      deleted.push("ads/_all");
+      setItem("ads", "_all", ads.filter((a) => a.coachId !== userId));
+    }
+    const invites = getCollection("invites");
+    for (const [token, inv] of Object.entries(invites)) {
+      if (inv.coachId === userId) {
+        deleted.push(`invites/${token}`);
+        deleteItem("invites", token);
+      }
+    }
+    // Also clear this coach's own requests to clients that never accepted.
+    const clientRequests = getCollection("clientRequests");
+    for (const [clientId, requests] of Object.entries(clientRequests)) {
+      if (requests.some((r) => r.coachId === userId)) {
+        deleted.push(`clientRequests/${clientId}`);
+        setItem("clientRequests", clientId, requests.filter((r) => r.coachId !== userId));
+      }
+    }
+  } else {
+    for (const key of ["sheets", "checkinSubmissions", "clientNotes", "paymentPlans", "clientRequests"]) {
+      if (getItem(key, userId, null) !== null) {
+        deleted.push(`${key}/${userId}`);
+        deleteItem(key, userId);
+      }
+    }
+    const relationships = getCollection("relationships");
+    for (const [coachId, clientIds] of Object.entries(relationships)) {
+      if (clientIds.includes(userId)) {
+        deleted.push(`relationships/${coachId}`);
+        setItem("relationships", coachId, clientIds.filter((id) => id !== userId));
+      }
+    }
+    const reviews = getCollection("reviews");
+    for (const [coachId, list] of Object.entries(reviews)) {
+      if (list.some((r) => r.clientId === userId)) {
+        deleted.push(`reviews/${coachId}`);
+        setItem("reviews", coachId, list.filter((r) => r.clientId !== userId));
+      }
+    }
+  }
+
+  const messages = getCollection("messages");
+  for (const key of Object.keys(messages)) {
+    if (key.split("_").includes(userId)) {
+      deleted.push(`messages/${key}`);
+      deleteItem("messages", key);
+    }
+  }
+
+  return { user, deleted };
+}
+
 module.exports = {
   getUser,
   saveUser,
@@ -372,4 +455,7 @@ module.exports = {
   getClientNotes,
   removeClientNote,
   recordPayment,
+  getAllPayments,
+  listAllUsers,
+  deleteUserCascade,
 };

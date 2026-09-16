@@ -22,6 +22,7 @@ const reviewRoutes = require("./routes/reviews");
 const noteRoutes = require("./routes/notes");
 const supportRoutes = require("./routes/support");
 const webhookRoutes = require("./routes/webhooks");
+const adminRoutes = require("./routes/admin");
 
 const app = express();
 
@@ -109,6 +110,7 @@ app.use("/api/calendar", calendarRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/notes", noteRoutes);
 app.use("/api/support", supportRoutes);
+app.use("/api/admin", adminRoutes);
 
 // The front-end (plain HTML/CSS/JS) lives in /public, served from here too.
 // NOTE: check-in videos/photos live in /uploads/checkins, NOT here — they're
@@ -124,7 +126,7 @@ app.use("/media/ads", express.static(path.join(DATA_DIR, "uploads", "ads")));
 // page instantly, data and all, with no fetch (and no requireLogin check)
 // ever happening. no-store forces a real reload every time, which also
 // disables bfcache for these pages in every major browser.
-app.use(["/coach-dashboard.html", "/client-dashboard.html"], (req, res, next) => {
+app.use(["/coach-dashboard.html", "/client-dashboard.html", "/admin-dashboard.html"], (req, res, next) => {
   res.set("Cache-Control", "no-store");
   next();
 });

@@ -21,4 +21,13 @@ function requireRole(role) {
   };
 }
 
-module.exports = { requireAuth, requireRole };
+// Admin is a completely separate session flag from the coach/client account
+// system (see routes/admin.js) — it's not a role on a users row, just a
+// single operator login gated by an env var, so it can't be reached via the
+// public signup form no matter what.
+function requireAdmin(req, res, next) {
+  if (!req.session?.isAdmin) return res.status(401).json({ error: "Not logged in" });
+  next();
+}
+
+module.exports = { requireAuth, requireRole, requireAdmin };

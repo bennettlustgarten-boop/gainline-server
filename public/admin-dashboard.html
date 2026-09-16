@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin dashboard — Gainline</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="dash-header">
+    <div class="left">
+      <a class="brand" href="/"><svg class="brand-icon" viewBox="0 0 24 34" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><ellipse cx="12" cy="4" rx="4" ry="3.3" fill="currentColor"/><path d="M10 7.3 L10 13.3 M14 7.3 L14 13.3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M3.5 14.2 L9 13 L15 13 L20.5 14.2 L17.3 17 L6.7 17 Z" fill="currentColor"/><path d="M9.4 17 L14.6 17 L12.6 31 L12 33.4 L11.4 31 Z" fill="var(--accent)"/></svg>Gain<span>line</span></a>
+      <span class="pill ok">Admin</span>
+    </div>
+    <button class="small-btn button secondary" id="logout-btn" style="margin-top:0;">Log out</button>
+  </div>
+
+  <main class="dash-main">
+    <div class="stat-row" id="stat-row"></div>
+
+    <div class="card" style="margin-top:16px;">
+      <div style="font-weight:700; margin-bottom:10px;">Membership tiers</div>
+      <div id="tier-breakdown" class="hint"></div>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <div class="flex-row" style="justify-content:space-between; flex-wrap:wrap; gap:10px;">
+        <div style="font-weight:700;">All users</div>
+        <input type="text" id="user-search" placeholder="Search name, username, or email..." style="max-width:280px;" />
+      </div>
+      <div class="sheet-table-wrap" style="margin-top:12px;">
+        <table class="sheet-table" id="users-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Username</th>
+              <th>Role</th>
+              <th>Email</th>
+              <th>Verified</th>
+              <th>Joined</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="users-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <div class="modal-overlay" id="reset-modal-overlay">
+    <div class="modal-card">
+      <button type="button" class="modal-close" id="reset-modal-close">&times;</button>
+      <h2 style="margin-top:0;">Reset password</h2>
+      <p class="hint" id="reset-modal-name"></p>
+      <label for="reset-new-password">New password</label>
+      <input type="password" id="reset-new-password" placeholder="At least 8 characters" />
+      <button type="button" id="reset-submit-btn" style="margin-top:12px;">Set new password</button>
+      <div class="status" id="reset-status"></div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+  <script src="/admin-dashboard.js"></script>
+</body>
+</html>
