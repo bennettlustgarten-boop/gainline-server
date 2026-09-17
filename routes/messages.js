@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const { getUser, getMessages, addMessage, getCoachIdForClient, getClientIds } = require("../db");
 const { uid } = require("../lib/uid");
-const { requireAuth } = require("../middleware/auth");
+const { requireVerified } = require("../middleware/auth");
 
 // A coach can message any of their own clients or any other coach.
 // A client can message only their own coach.
@@ -17,13 +17,13 @@ function canMessage(me, otherId) {
   return getClientIds(me.id).includes(otherId);
 }
 
-router.get("/:otherUserId", requireAuth, (req, res) => {
+router.get("/:otherUserId", requireVerified, (req, res) => {
   const { otherUserId } = req.params;
   if (!canMessage(req.user, otherUserId)) return res.status(403).json({ error: "Not allowed" });
   res.json({ messages: getMessages(req.user.id, otherUserId) });
 });
 
-router.post("/:otherUserId", requireAuth, (req, res) => {
+router.post("/:otherUserId", requireVerified, (req, res) => {
   const { otherUserId } = req.params;
   const { text } = req.body;
   if (!text?.trim()) return res.status(400).json({ error: "text is required" });

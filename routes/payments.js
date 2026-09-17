@@ -12,7 +12,7 @@ const {
 } = require("../db");
 const { tierForCoach } = require("../lib/tiers");
 const { uid } = require("../lib/uid");
-const { requireAuth, requireRole } = require("../middleware/auth");
+const { requireVerified, requireRole } = require("../middleware/auth");
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const APP_URL = process.env.APP_URL || "http://localhost:4242";
@@ -165,7 +165,7 @@ router.post("/plans", requireRole("coach"), (req, res) => {
   res.json({ plans: addPaymentPlan(clientId, plan) });
 });
 
-router.get("/plans/:clientId", requireAuth, (req, res) => {
+router.get("/plans/:clientId", requireVerified, (req, res) => {
   const { clientId } = req.params;
   const isSelf = req.user.id === clientId;
   const isTheirCoach = req.user.role === "coach" && getCoachIdForClient(clientId) === req.user.id;

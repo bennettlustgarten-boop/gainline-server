@@ -14,7 +14,7 @@ const {
 const { uid } = require("../lib/uid");
 const { isRecognizedImage } = require("../lib/fileSignature");
 const { DATA_DIR } = require("../lib/dataDir");
-const { requireAuth, requireRole } = require("../middleware/auth");
+const { requireVerified, requireRole } = require("../middleware/auth");
 
 const POSE_KEYS = ["front", "side", "back"];
 const MAX_POSES_PER_KEY = 6;
@@ -100,7 +100,7 @@ router.post("/templates", requireRole("coach"), (req, res) => {
   res.json({ templates: addCheckinTemplate(req.user.id, template) });
 });
 
-router.get("/templates", requireAuth, (req, res) => {
+router.get("/templates", requireVerified, (req, res) => {
   const coachId = req.user.role === "coach" ? req.user.id : getCoachIdForClient(req.user.id);
   if (!coachId) return res.json({ templates: [] });
   // Old templates (saved before posing photos / multi-video existed) won't
@@ -161,7 +161,7 @@ router.post(
   }
 );
 
-router.get("/submissions/:clientId", requireAuth, (req, res) => {
+router.get("/submissions/:clientId", requireVerified, (req, res) => {
   const { clientId } = req.params;
   const isSelf = req.user.id === clientId;
   const isTheirCoach = req.user.role === "coach" && getCoachIdForClient(clientId) === req.user.id;
@@ -172,7 +172,7 @@ router.get("/submissions/:clientId", requireAuth, (req, res) => {
 // Streams a check-in video or pose photo. Not served via express.static —
 // only the submitting client or their coach can fetch it, and access is
 // checked by the client id encoded as the filename's prefix.
-router.get("/media/:filename", requireAuth, (req, res) => {
+router.get("/media/:filename", requireVerified, (req, res) => {
   const { filename } = req.params;
   if (!/^[a-zA-Z0-9_.-]+$/.test(filename)) return res.status(400).json({ error: "Invalid filename" });
   const ownerClientId = filename.split("--")[0];

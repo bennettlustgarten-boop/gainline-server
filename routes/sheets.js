@@ -3,7 +3,7 @@ const router = express.Router();
 const { addSheet, getSheets, getCoachIdForClient } = require("../db");
 const { uid } = require("../lib/uid");
 const { gramsFromAmount } = require("../lib/units");
-const { requireAuth, requireRole } = require("../middleware/auth");
+const { requireVerified, requireRole } = require("../middleware/auth");
 
 function macrosFor(per100, grams) {
   const factor = (Number(grams) || 0) / 100;
@@ -79,7 +79,7 @@ router.post("/", requireRole("coach"), (req, res) => {
   res.status(400).json({ error: "type must be workout or diet" });
 });
 
-router.get("/:clientId", requireAuth, (req, res) => {
+router.get("/:clientId", requireVerified, (req, res) => {
   const { clientId } = req.params;
   const isSelf = req.user.id === clientId;
   const isTheirCoach = req.user.role === "coach" && getCoachIdForClient(clientId) === req.user.id;

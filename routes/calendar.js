@@ -13,7 +13,7 @@ const {
 } = require("../db");
 const { uid } = require("../lib/uid");
 const { expandOccurrences, DEFAULT_WINDOW_MS } = require("../lib/calendar");
-const { requireAuth, requireRole } = require("../middleware/auth");
+const { requireVerified, requireRole } = require("../middleware/auth");
 
 const DEFAULT_TYPES = ["In-person training", "Check-in"];
 
@@ -79,7 +79,7 @@ router.post("/events", requireRole("coach"), (req, res) => {
 // occurrences; a client sees only their own. Pass ?from=&to= (ISO strings)
 // to scope to a specific range — e.g. the month currently on screen; without
 // them this defaults to "now through the next ~3 months".
-router.get("/events", requireAuth, (req, res) => {
+router.get("/events", requireVerified, (req, res) => {
   const coachId = req.user.role === "coach" ? req.user.id : getCoachIdForClient(req.user.id);
   if (!coachId) return res.json({ occurrences: [] });
 

@@ -9,9 +9,27 @@ function requireAuth(req, res, next) {
   next();
 }
 
+// Blocks every real feature (messaging, sheets, check-ins, payments, adding
+// clients, etc.) until the account's email is verified — previously this was
+// only enforced by the dashboard UI showing a "verify your email" screen,
+// but the API itself never checked it, so a script hitting the endpoints
+// directly (as a signup-spam bot did) got a fully working account with zero
+// verification. /auth/me and /auth/resend-verification intentionally stay on
+// bare requireAuth so an unverified user's own dashboard can still load
+// enough to show that gate and let them resend the email.
+function requireVerified(req, res, next) {
+  requireAuth(req, res, (err) => {
+    if (err) return next(err);
+    if (!req.user.emailVerified) {
+      return res.status(403).json({ error: "Please verify your email before continuing — check your inbox for the verification link." });
+    }
+    next();
+  });
+}
+
 function requireRole(role) {
   return (req, res, next) => {
-    requireAuth(req, res, (err) => {
+    requireVerified(req, res, (err) => {
       if (err) return next(err);
       if (req.user.role !== role) {
         return res.status(403).json({ error: `Only ${role}s can do this` });
@@ -30,4 +48,4 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-module.exports = { requireAuth, requireRole, requireAdmin };
+module.exports = { requireAuth, requireVerified, requireRole, requireAdmin };
