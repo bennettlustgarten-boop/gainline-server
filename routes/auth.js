@@ -160,16 +160,22 @@ router.post("/signup", signupLimiter, async (req, res) => {
   }
 });
 
+// Used only when the username doesn't exist, so login always takes roughly
+// the same time either way (see below) instead of returning instantly for a
+// bad username but only after a real bcrypt comparison for a good one —
+// that timing gap is enough to let someone enumerate every real username on
+// the platform by just measuring response times, no password guessing
+// needed.
+const DUMMY_HASH = bcrypt.hashSync("no-such-user-timing-safety", 10);
+
 router.post("/login", loginLimiter, async (req, res) => {
   try {
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ error: "username and password are required" });
 
     const user = findUserByUsername(username.trim().replace(/^@/, ""));
-    if (!user) return res.status(401).json({ error: "Invalid username or password" });
-
-    const ok = await bcrypt.compare(password, user.passwordHash || "");
-    if (!ok) return res.status(401).json({ error: "Invalid username or password" });
+    const ok = await bcrypt.compare(password, user?.passwordHash || DUMMY_HASH);
+    if (!user || !ok) return res.status(401).json({ error: "Invalid username or password" });
 
     req.session.userId = user.id;
     res.json({ user: publicUser(user) });
@@ -269,7 +275,12 @@ router.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
       passwordResetToken: uid("prt_"),
       passwordResetTokenExpires: Date.now() + RESET_TOKEN_TTL_MS,
     });
-    await sendPasswordResetEmail(updated);
+    // Deliberately not awaited — same reason as signup's verification email.
+    // The whole point of this route is that its response can't reveal
+    // whether the email is on file, but a real network call to Resend takes
+    // far longer than the instant return below for an unknown email, so
+    // awaiting it here would leak exactly that via response timing.
+    sendPasswordResetEmail(updated);
   }
   res.json({ ok: true });
 });
