@@ -117,6 +117,13 @@ router.post("/signup", signupLimiter, async (req, res) => {
     if (findUserByUsername(handle)) {
       return res.status(400).json({ error: "That username is already taken — try another." });
     }
+    // Without this, two accounts could share an email — findUserByEmail
+    // only ever returns the first match, so password reset and (before
+    // today) the support form would silently go to whichever one it found,
+    // not necessarily the one the person meant.
+    if (findUserByEmail(email.trim())) {
+      return res.status(400).json({ error: "An account with that email already exists — log in or use forgot password instead." });
+    }
 
     const passwordHash = await bcrypt.hash(password, 10);
     const id = uid(role === "coach" ? "coach_" : "client_");
