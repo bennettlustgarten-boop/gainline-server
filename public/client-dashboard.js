@@ -9,6 +9,7 @@ let sheetFilter = "all";
   document.getElementById("who-username").textContent = `@${ME.username}`;
   document.getElementById("logout-btn").addEventListener("click", logout);
   setupSupportLink();
+  setupDeleteAccountLink();
 
   if (!ME.emailVerified) {
     showEmailVerifyGate(ME.email);

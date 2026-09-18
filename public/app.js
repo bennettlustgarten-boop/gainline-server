@@ -28,7 +28,8 @@ function qs(name) {
 // plain mailto: link — mailto only does something if the OS has a mail
 // client registered, which a lot of machines (and any sandboxed/headless
 // browser) don't have, so clicking it was a silent no-op. The modal posts
-// the message to the server, which emails it to support directly.
+// the message to the server, which stores it for review in the admin
+// dashboard (no public support inbox anymore — it was getting bot-flooded).
 function setupSupportLink() {
   const link = document.getElementById("support-link");
   if (!link) return;
@@ -85,6 +86,66 @@ function setupSupportLink() {
       showStatus(statusEl, err.message, "error");
     } finally {
       sendBtn.disabled = false;
+    }
+  });
+}
+
+// Required for App Store review (Apple guideline 5.1.1(v)): any app that
+// supports account creation must let the user delete their account from
+// inside the app, not just deactivate it. Confirms with the current
+// password, same as changing one, since this is permanent.
+function setupDeleteAccountLink() {
+  const link = document.getElementById("delete-account-link");
+  if (!link) return;
+
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal-card">
+      <button type="button" class="modal-close" id="delete-account-modal-close">&times;</button>
+      <h2 style="margin-top:0;">Delete your account</h2>
+      <p class="hint">This permanently deletes your account and everything tied to it — sheets, check-ins, messages, notes, payment plans, calendar data. This can't be undone.</p>
+      <label for="delete-account-password">Enter your password to confirm</label>
+      <input type="password" id="delete-account-password" placeholder="Your password" />
+      <button type="button" id="delete-account-submit-btn" style="margin-top:12px; background:var(--danger); color:#1a0505;">Permanently delete my account</button>
+      <div class="status" id="delete-account-status"></div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const statusEl = overlay.querySelector("#delete-account-status");
+  const passwordEl = overlay.querySelector("#delete-account-password");
+  const submitBtn = overlay.querySelector("#delete-account-submit-btn");
+
+  const close = () => overlay.classList.remove("open");
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay || e.target.id === "delete-account-modal-close") close();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") close();
+  });
+
+  link.addEventListener("click", (e) => {
+    e.preventDefault();
+    statusEl.className = "status";
+    statusEl.textContent = "";
+    passwordEl.value = "";
+    overlay.classList.add("open");
+    passwordEl.focus();
+  });
+
+  submitBtn.addEventListener("click", async () => {
+    const password = passwordEl.value;
+    if (!password) return showStatus(statusEl, "Enter your password first.", "error");
+
+    submitBtn.disabled = true;
+    showStatus(statusEl, "Deleting your account...", "info");
+    try {
+      await api("/auth/me", { method: "DELETE", body: JSON.stringify({ password }) });
+      window.location.href = "/";
+    } catch (err) {
+      showStatus(statusEl, err.message, "error");
+      submitBtn.disabled = false;
     }
   });
 }

@@ -12,6 +12,7 @@ const {
   getInvite,
   addRelationship,
   getClientIds,
+  deleteUserCascade,
 } = require("../db");
 const { uid } = require("../lib/uid");
 const { publicUser } = require("../lib/publicUser");
@@ -187,6 +188,22 @@ router.get("/me", requireAuth, (req, res) => {
   // other place publicUser() is used, the subject could be someone ELSE
   // looking at a profile, where email must stay private.
   res.json({ user: { ...publicUser(req.user), email: req.user.email || null } });
+});
+
+// Self-service account deletion — required for App Store review (Apple
+// guideline 5.1.1(v): any app that supports account creation must let a
+// user delete their account from inside the app, not just deactivate it).
+// Requires the current password as confirmation, same as changing a
+// password, since this is permanent and irreversible.
+router.delete("/me", requireAuth, async (req, res) => {
+  const { password } = req.body;
+  if (!password) return res.status(400).json({ error: "Enter your password to confirm account deletion" });
+
+  const ok = await bcrypt.compare(password, req.user.passwordHash || "");
+  if (!ok) return res.status(401).json({ error: "Incorrect password" });
+
+  deleteUserCascade(req.user.id);
+  req.session.destroy(() => res.json({ ok: true }));
 });
 
 const verifyLimiter = rateLimit({

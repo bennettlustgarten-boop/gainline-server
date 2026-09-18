@@ -13,6 +13,7 @@ const CAMERA_ICON = `<svg width="30" height="30" viewBox="0 0 24 24" fill="none"
   document.getElementById("who-username").textContent = `@${ME.username}`;
   document.getElementById("logout-btn").addEventListener("click", logout);
   setupSupportLink();
+  setupDeleteAccountLink();
 
   if (!ME.emailVerified) {
     showEmailVerifyGate(ME.email);
