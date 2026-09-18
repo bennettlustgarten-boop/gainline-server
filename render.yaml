@@ -28,6 +28,8 @@ services:
         sync: false
       - key: ADMIN_PASSWORD
         sync: false
+      - key: TURNSTILE_SECRET_KEY
+        sync: false
     # data.db and /uploads live under DATA_DIR (see lib/dataDir.js), which
     # must point at a Render Disk (https://render.com/docs/disks) — not the
     # free plan's local filesystem, which gets wiped on every deploy/restart.

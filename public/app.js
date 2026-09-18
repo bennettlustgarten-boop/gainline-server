@@ -30,9 +30,8 @@ function qs(name) {
 // browser) don't have, so clicking it was a silent no-op. The modal posts
 // the message to the server, which emails it to support directly.
 function setupSupportLink() {
-  const link = document.querySelector('a[href^="mailto:"]');
+  const link = document.getElementById("support-link");
   if (!link) return;
-  const email = link.getAttribute("href").replace("mailto:", "").split("?")[0];
 
   const overlay = document.createElement("div");
   overlay.className = "modal-overlay";
@@ -47,7 +46,6 @@ function setupSupportLink() {
       <input type="email" id="support-reply-email" placeholder="you@example.com" />
       <button type="button" id="support-send-btn" style="margin-top:12px;">Send</button>
       <div class="status" id="support-status"></div>
-      <p class="hint" style="margin-top:14px;">Or email us directly: <a href="mailto:${email}" id="support-direct-link">${email}</a></p>
     </div>
   `;
   document.body.appendChild(overlay);
@@ -88,10 +86,6 @@ function setupSupportLink() {
     } finally {
       sendBtn.disabled = false;
     }
-  });
-
-  overlay.querySelector("#support-direct-link").addEventListener("click", () => {
-    navigator.clipboard?.writeText(email).catch(() => {});
   });
 }
 

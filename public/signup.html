@@ -41,15 +41,18 @@
         <span>I have read and agree to the <a href="/terms.html" target="_blank" rel="noopener">Terms of Use &amp; Liability Waiver</a>, including its release of liability between coaches and clients.</span>
       </label>
 
+      <div class="cf-turnstile" data-sitekey="TURNSTILE_SITE_KEY_PLACEHOLDER" data-theme="dark" style="margin-top:12px;"></div>
+
       <button type="submit" id="submit-btn">Create account</button>
       <div class="status" id="status"></div>
     </form>
 
-    <p class="hint" style="margin-top:16px;">Having trouble with the site? Contact <a href="mailto:GainLineSupport@gmail.com">GainLineSupport@gmail.com</a></p>
+    <p class="hint" style="margin-top:16px;">Having trouble with the site? <a href="#" id="support-link">Contact support</a></p>
 
     <a class="back-link" href="/">&larr; Back home</a>
   </main>
 
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
   <script src="/app.js"></script>
   <script>
     setupSupportLink();
@@ -91,19 +94,25 @@
       const username = document.getElementById("username").value.trim();
       const email = document.getElementById("email").value.trim();
       const password = document.getElementById("password").value;
+      const turnstileToken = window.turnstile?.getResponse();
+      if (!turnstileToken) {
+        showStatus(statusEl, "Please complete the verification check.", "error");
+        return;
+      }
 
       submitBtn.disabled = true;
       showStatus(statusEl, "Creating your account...", "info");
       try {
         const { inviteNotice } = await api("/auth/signup", {
           method: "POST",
-          body: JSON.stringify({ role, name, username, email, password, inviteToken }),
+          body: JSON.stringify({ role, name, username, email, password, inviteToken, turnstileToken }),
         });
         if (inviteNotice) sessionStorage.setItem("gainline_notice", inviteNotice);
         window.location.href = role === "coach" ? "/coach-dashboard.html" : "/client-dashboard.html";
       } catch (err) {
         showStatus(statusEl, err.message, "error");
         submitBtn.disabled = false;
+        window.turnstile?.reset();
       }
     });
   </script>

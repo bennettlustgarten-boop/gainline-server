@@ -3,7 +3,16 @@ const router = express.Router();
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const rateLimit = require("express-rate-limit");
-const { getUser, saveUser, listAllUsers, getAllPayments, deleteUserCascade } = require("../db");
+const {
+  getUser,
+  saveUser,
+  listAllUsers,
+  getAllPayments,
+  deleteUserCascade,
+  getSupportRequests,
+  updateSupportRequest,
+  deleteSupportRequest,
+} = require("../db");
 const { requireAdmin } = require("../middleware/auth");
 
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
@@ -116,6 +125,22 @@ router.delete("/users/:userId", requireAdmin, (req, res) => {
   const result = deleteUserCascade(userId);
   if (!result) return res.status(404).json({ error: "User not found" });
   res.json({ ok: true, deleted: result.deleted });
+});
+
+router.get("/support", requireAdmin, (req, res) => {
+  const requests = getSupportRequests().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  res.json({ requests });
+});
+
+router.post("/support/:requestId/resolve", requireAdmin, (req, res) => {
+  const updated = updateSupportRequest(req.params.requestId, { resolved: true });
+  if (!updated) return res.status(404).json({ error: "Request not found" });
+  res.json({ ok: true });
+});
+
+router.delete("/support/:requestId", requireAdmin, (req, res) => {
+  deleteSupportRequest(req.params.requestId);
+  res.json({ ok: true });
 });
 
 module.exports = router;

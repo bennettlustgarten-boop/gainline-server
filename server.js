@@ -44,11 +44,15 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
+        // challenges.cloudflare.com is Cloudflare Turnstile (the signup-page
+        // CAPTCHA) — it needs to load its script, render in an iframe, and
+        // call back to its own domain.
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://challenges.cloudflare.com"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", "data:", "blob:"],
         mediaSrc: ["'self'", "blob:"],
-        connectSrc: ["'self'"],
+        connectSrc: ["'self'", "https://challenges.cloudflare.com"],
+        frameSrc: ["https://challenges.cloudflare.com"],
         objectSrc: ["'none'"],
         frameAncestors: ["'self'"],
       },

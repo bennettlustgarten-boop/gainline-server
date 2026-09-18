@@ -24,6 +24,28 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const APP_URL = process.env.APP_URL || "http://localhost:4242";
 const VERIFY_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
+const TURNSTILE_SECRET_KEY = process.env.TURNSTILE_SECRET_KEY;
+
+// Cloudflare Turnstile CAPTCHA on signup, added after a bot created dozens of
+// fake accounts. Skipped entirely when TURNSTILE_SECRET_KEY isn't set (e.g.
+// local dev) so that's never required to run the app locally — only
+// production needs the real key.
+async function verifyTurnstile(token, ip) {
+  if (!TURNSTILE_SECRET_KEY) return true;
+  if (!token) return false;
+  try {
+    const res = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ secret: TURNSTILE_SECRET_KEY, response: token, remoteip: ip || "" }),
+    });
+    const data = await res.json();
+    return !!data.success;
+  } catch (err) {
+    console.error("Turnstile verification request failed:", err.message);
+    return false;
+  }
+}
 
 async function sendVerificationEmail(user) {
   if (!mailerConfigured || !user.email) return;
@@ -76,13 +98,16 @@ const signupLimiter = rateLimit({
 
 router.post("/signup", signupLimiter, async (req, res) => {
   try {
-    const { role, name, username, email, password, inviteToken } = req.body;
+    const { role, name, username, email, password, inviteToken, turnstileToken } = req.body;
     if (!["coach", "client"].includes(role)) return res.status(400).json({ error: "role must be coach or client" });
     if (!name?.trim() || !username?.trim() || !password || !email?.trim()) {
       return res.status(400).json({ error: "name, username, email, and password are required" });
     }
     if (!EMAIL_RE.test(email.trim())) return res.status(400).json({ error: "Enter a valid email address" });
     if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters" });
+    if (!(await verifyTurnstile(turnstileToken, req.ip))) {
+      return res.status(400).json({ error: "Verification check failed — please try again." });
+    }
 
     const handle = username.trim().replace(/^@/, "").toLowerCase();
     if (!USERNAME_RE.test(handle)) {

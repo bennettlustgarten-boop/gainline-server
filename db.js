@@ -327,6 +327,34 @@ function getAllPayments() {
   return getItem("payments", "_all", []);
 }
 
+// ---- Support requests ----------------------------------------------------------
+// No public support inbox anymore (it just got flooded by bots) — the
+// "Contact support" form writes here instead, and only the admin dashboard
+// can see it. Real requests get a private reply from there.
+
+function addSupportRequest(request) {
+  const list = getItem("supportRequests", "_all", []);
+  list.push(request);
+  setItem("supportRequests", "_all", list);
+}
+
+function getSupportRequests() {
+  return getItem("supportRequests", "_all", []);
+}
+
+function updateSupportRequest(id, patch) {
+  const list = getItem("supportRequests", "_all", []);
+  const idx = list.findIndex((r) => r.id === id);
+  if (idx === -1) return null;
+  list[idx] = { ...list[idx], ...patch };
+  setItem("supportRequests", "_all", list);
+  return list[idx];
+}
+
+function deleteSupportRequest(id) {
+  setItem("supportRequests", "_all", getItem("supportRequests", "_all", []).filter((r) => r.id !== id));
+}
+
 // ---- Admin -------------------------------------------------------------------
 
 function listAllUsers() {
@@ -456,6 +484,10 @@ module.exports = {
   removeClientNote,
   recordPayment,
   getAllPayments,
+  addSupportRequest,
+  getSupportRequests,
+  updateSupportRequest,
+  deleteSupportRequest,
   listAllUsers,
   deleteUserCascade,
 };

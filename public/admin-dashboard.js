@@ -12,10 +12,55 @@ let USERS = [];
     window.location.href = "/admin.html";
   });
   document.getElementById("user-search").addEventListener("input", renderUsersTable);
+  document.getElementById("support-hide-resolved").addEventListener("change", loadSupportRequests);
   setupResetModal();
 
-  await Promise.all([loadStats(), loadUsers()]);
+  await Promise.all([loadStats(), loadUsers(), loadSupportRequests()]);
 })();
+
+async function loadSupportRequests() {
+  const { requests } = await api("/admin/support");
+  const hideResolved = document.getElementById("support-hide-resolved").checked;
+  const visible = hideResolved ? requests.filter((r) => !r.resolved) : requests;
+  const listEl = document.getElementById("support-list");
+
+  listEl.innerHTML = visible.length
+    ? visible
+        .map(
+          (r) => `
+        <div class="card" style="margin-bottom:10px; ${r.resolved ? "opacity:0.6;" : ""}">
+          <div class="flex-row" style="justify-content:space-between; align-items:flex-start;">
+            <div>
+              <div style="font-weight:700;">${escapeHtml(r.fromLabel)}</div>
+              <div class="hint">${fmtDate(r.createdAt)}${r.replyTo ? ` &middot; reply to: ${escapeHtml(r.replyTo)}` : ""}</div>
+            </div>
+            ${r.resolved ? '<span class="pill ok">Resolved</span>' : '<span class="pill pending">Open</span>'}
+          </div>
+          <div style="margin-top:8px; white-space:pre-wrap;">${escapeHtml(r.message)}</div>
+          <div class="flex-row" style="gap:8px; margin-top:10px;">
+            ${!r.resolved ? `<button type="button" class="small-btn secondary" data-resolve="${r.id}" style="margin-top:0;">Mark resolved</button>` : ""}
+            <button type="button" class="small-btn secondary" data-delete-support="${r.id}" style="margin-top:0; color:var(--danger);">Delete</button>
+          </div>
+        </div>
+      `
+        )
+        .join("")
+    : `<p class="hint">No support requests${hideResolved ? " (or all are resolved)" : ""}.</p>`;
+
+  listEl.querySelectorAll("[data-resolve]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      await api(`/admin/support/${btn.dataset.resolve}/resolve`, { method: "POST" });
+      loadSupportRequests();
+    });
+  });
+  listEl.querySelectorAll("[data-delete-support]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Delete this support request?")) return;
+      await api(`/admin/support/${btn.dataset.deleteSupport}`, { method: "DELETE" });
+      loadSupportRequests();
+    });
+  });
+}
 
 async function loadStats() {
   const stats = await api("/admin/stats");
