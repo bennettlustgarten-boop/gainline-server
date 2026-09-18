@@ -10,6 +10,11 @@
 const fs = require("fs");
 const path = require("path");
 const { db } = require("./lib/sqlite");
+const { DATA_DIR } = require("./lib/dataDir");
+
+function unlinkQuiet(filePath) {
+  fs.unlink(filePath, () => {});
+}
 
 const getStmt = db.prepare("SELECT value FROM store WHERE collection = ? AND key = ?");
 const getAllStmt = db.prepare("SELECT key, value FROM store WHERE collection = ?");
@@ -381,8 +386,10 @@ function deleteUserCascade(userId) {
       }
     }
     const ads = getItem("ads", "_all", []);
-    if (ads.some((a) => a.coachId === userId)) {
+    const ownAd = ads.find((a) => a.coachId === userId);
+    if (ownAd) {
       deleted.push("ads/_all");
+      if (ownAd.mediaFile) unlinkQuiet(path.join(DATA_DIR, "uploads", "ads", ownAd.mediaFile));
       setItem("ads", "_all", ads.filter((a) => a.coachId !== userId));
     }
     const invites = getCollection("invites");
@@ -401,6 +408,14 @@ function deleteUserCascade(userId) {
       }
     }
   } else {
+    const submissions = getItem("checkinSubmissions", userId, null);
+    if (submissions) {
+      const checkinDir = path.join(DATA_DIR, "uploads", "checkins");
+      for (const sub of submissions) {
+        (sub.videoFiles || []).forEach((f) => unlinkQuiet(path.join(checkinDir, f)));
+        (sub.photos || []).forEach((p) => unlinkQuiet(path.join(checkinDir, p.file)));
+      }
+    }
     for (const key of ["sheets", "checkinSubmissions", "clientNotes", "paymentPlans", "clientRequests"]) {
       if (getItem(key, userId, null) !== null) {
         deleted.push(`${key}/${userId}`);

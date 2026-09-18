@@ -3,6 +3,7 @@ const router = express.Router();
 const fs = require("fs");
 const path = require("path");
 const multer = require("multer");
+const rateLimit = require("express-rate-limit");
 const {
   addCheckinTemplate,
   getCheckinTemplates,
@@ -60,6 +61,21 @@ const storage = multer.diskStorage({
     cb(null, `${req.user.id}--${uid()}${ext}`);
   },
 });
+const MAX_SUBMISSION_BYTES = 300 * 1024 * 1024;
+
+// A real client submits a check-in at most once a day or so, and each one
+// can carry up to MAX_SUBMISSION_BYTES of video/photos — with no limit here
+// a compromised or malicious account could still fill the disk over many
+// requests even though each individual one is capped.
+const submissionLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user.id,
+  message: { error: "Too many check-in submissions from this account — please wait a while and try again." },
+});
+
 const upload = multer({
   storage,
   limits: { fileSize: 75 * 1024 * 1024, files: MAX_POSES_PER_KEY + MAX_POSES_PER_KEY * POSE_KEYS.length },
@@ -118,6 +134,7 @@ router.get("/templates", requireVerified, (req, res) => {
 router.post(
   "/submissions",
   requireRole("client"),
+  submissionLimiter,
   (req, res, next) => {
     upload.fields([{ name: "video", maxCount: MAX_POSES_PER_KEY }, { name: "photos", maxCount: MAX_POSES_PER_KEY * POSE_KEYS.length }])(req, res, (err) => {
       if (err) return res.status(400).json({ error: err.message });
@@ -132,6 +149,17 @@ router.post(
 
       const photoFiles = req.files?.photos || [];
       const allUploaded = [...photoFiles, ...(req.files?.video || [])];
+
+      // multer's own limits (75MB/file, up to 24 files across both fields)
+      // still allow a worst case of ~1.8GB in a single submission — more
+      // than the entire production disk. Cap the combined size actually
+      // written for this submission and clean up if it's over.
+      const totalBytes = allUploaded.reduce((sum, f) => sum + f.size, 0);
+      if (totalBytes > MAX_SUBMISSION_BYTES) {
+        allUploaded.forEach((u) => fs.unlink(u.path, () => {}));
+        return res.status(400).json({ error: "That check-in's files are too large combined — try sending fewer or smaller files." });
+      }
+
       for (const f of photoFiles) {
         const head = Buffer.alloc(12);
         const fd = fs.openSync(f.path, "r");

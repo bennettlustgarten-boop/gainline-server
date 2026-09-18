@@ -83,9 +83,15 @@ router.get("/events", requireVerified, (req, res) => {
   const coachId = req.user.role === "coach" ? req.user.id : getCoachIdForClient(req.user.id);
   if (!coachId) return res.json({ occurrences: [] });
 
+  // from/to are caller-supplied, so cap the span at 1 year — otherwise a
+  // request like ?to=2100-01-01 would force expandOccurrences to generate a
+  // weekly occurrence for every week across the full range, for every
+  // recurring event with no "until" date, which scales with nothing but
+  // however wide a date range someone asks for.
+  const MAX_WINDOW_MS = 365 * 24 * 60 * 60 * 1000;
   const rangeStart = req.query.from ? new Date(req.query.from).getTime() : Date.now();
   const rangeEndInput = req.query.to ? new Date(req.query.to).getTime() : rangeStart + DEFAULT_WINDOW_MS;
-  const windowMs = Math.max(rangeEndInput - rangeStart, 0);
+  const windowMs = Math.min(Math.max(rangeEndInput - rangeStart, 0), MAX_WINDOW_MS);
 
   const events = getCalendarEvents(coachId).filter((e) => req.user.role === "coach" || e.clientId === req.user.id);
   const clientCache = {};
