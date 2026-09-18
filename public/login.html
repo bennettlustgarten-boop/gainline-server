@@ -49,7 +49,7 @@
       showStatus(statusEl, "Logging in...", "info");
       try {
         const { user } = await api("/auth/login", { method: "POST", body: JSON.stringify({ username, password }) });
-        const next = qs("next");
+        const next = safeRelativePath(qs("next"));
         window.location.href = next || (user.role === "coach" ? "/coach-dashboard.html" : "/client-dashboard.html");
       } catch (err) {
         showStatus(statusEl, err.message, "error");

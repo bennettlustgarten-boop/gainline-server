@@ -24,6 +24,18 @@ function qs(name) {
   return new URLSearchParams(window.location.search).get(name);
 }
 
+// Used to validate redirect targets that come from a URL query param (e.g.
+// login.html's ?next=) before ever assigning them to location.href. Without
+// this, a crafted link like login.html?next=https://evil.com — or the
+// protocol-relative //evil.com, which browsers treat the same way — would
+// send someone straight to a phishing site immediately after they
+// genuinely logged in on the real site. Only a same-site path starting
+// with exactly one "/" is considered safe.
+function safeRelativePath(path) {
+  if (typeof path !== "string" || !path.startsWith("/") || path.startsWith("//") || path.startsWith("/\\")) return null;
+  return path;
+}
+
 // The header "Support" link opens a modal with a message box instead of a
 // plain mailto: link — mailto only does something if the OS has a mail
 // client registered, which a lot of machines (and any sandboxed/headless

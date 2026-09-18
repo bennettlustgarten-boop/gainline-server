@@ -44,6 +44,11 @@ router.post("/login", loginLimiter, (req, res) => {
     return res.status(401).json({ error: "Invalid username or password" });
   }
   req.session.isAdmin = true;
+  // The default session cookie lives for 30 days, fine for a regular coach
+  // or client — but this login can see and change everything, so a shared
+  // or stolen device staying signed in for a month is a real risk. Shorten
+  // just this session to 4 hours.
+  req.session.cookie.maxAge = 4 * 60 * 60 * 1000;
   res.json({ ok: true });
 });
 

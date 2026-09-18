@@ -1,8 +1,23 @@
 const express = require("express");
 const router = express.Router();
+const rateLimit = require("express-rate-limit");
 const { getUser, getMessages, addMessage, getCoachIdForClient, getClientIds } = require("../db");
 const { uid } = require("../lib/uid");
 const { requireVerified } = require("../middleware/auth");
+
+// Keyed by account, not IP — this runs after requireVerified so req.user is
+// always set, and per-account is the right scope here (an IP-based limit
+// would unfairly throttle everyone behind the same office/campus network).
+// Without this, a single verified account had no cap at all on how many
+// messages it could fire at another user.
+const sendLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user.id,
+  message: { error: "You're sending messages too fast — please slow down." },
+});
 
 // A coach can message any of their own clients or any other coach.
 // A client can message only their own coach.
@@ -23,7 +38,7 @@ router.get("/:otherUserId", requireVerified, (req, res) => {
   res.json({ messages: getMessages(req.user.id, otherUserId) });
 });
 
-router.post("/:otherUserId", requireVerified, (req, res) => {
+router.post("/:otherUserId", requireVerified, sendLimiter, (req, res) => {
   const { otherUserId } = req.params;
   const { text } = req.body;
   if (!text?.trim()) return res.status(400).json({ error: "text is required" });
