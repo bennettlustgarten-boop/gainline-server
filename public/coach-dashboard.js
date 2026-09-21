@@ -219,6 +219,10 @@ function activateTab(tab) {
   TAB_LOADERS[tab]();
 }
 
+// JSON can't carry Infinity — the server sends the Unlimited tier's cap as
+// null, so treat a missing max as "no limit" rather than as 0.
+const tierMax = (tier) => (tier.max == null ? Infinity : tier.max);
+
 // ---------------- Overview ----------------
 
 async function loadOverview() {
@@ -235,7 +239,7 @@ async function loadOverview() {
       <span class="pill ok">${tier.price === 0 ? "Free" : `$${tier.price}/mo`}</span>
     </div>
     <div class="hint" style="margin-top:6px;">
-      ${clients.length} of ${tier.max === Infinity ? "unlimited" : tier.max} client slots used
+      ${clients.length} of ${tierMax(tier) === Infinity ? "unlimited" : tier.max} client slots used
       ${next ? ` — upgrade to ${next.label} ($${next.price}/mo) for ${next.max === Infinity ? "unlimited" : next.max} clients` : ""}
     </div>
     <div class="tier-ladder">
@@ -265,7 +269,7 @@ async function loadClients() {
   renderInviteCard();
   const { clients, tier } = await api("/clients");
   CLIENTS = clients;
-  const atCap = clients.length >= tier.max;
+  const atCap = clients.length >= tierMax(tier);
 
   const searchInput = document.getElementById("client-search");
   searchInput.disabled = atCap;
