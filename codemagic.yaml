@@ -10,7 +10,7 @@ workflows:
         distribution_type: app_store
         bundle_identifier: online.gainlineapp.app
       vars:
-        APP_STORE_APPLE_ID: 0 # set this to the App Store Connect app's numeric Apple ID once the app record is created
+        APP_STORE_APPLE_ID: 6813315224 # numeric Apple ID of the Gainline app record in App Store Connect
       xcode: latest
       cocoapods: default
       node: latest
