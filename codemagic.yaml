@@ -4,7 +4,10 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m2
     integrations:
-      app_store_connect: gainline_app_store_connect
+      # Uses the Admin-level key (needed for code signing certs/profiles) —
+      # Admin access also covers everything App Manager does, including
+      # publishing, so one key handles both signing and TestFlight upload.
+      app_store_connect: gainline_developer_portal
     environment:
       ios_signing:
         distribution_type: app_store
