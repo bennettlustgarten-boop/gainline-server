@@ -74,6 +74,14 @@ router.post("/confirm", requireRole("coach"), async (req, res) => {
       return res.json({ ok: true, pending: true });
     }
 
+    // The session id stays valid forever, so without this check a coach could
+    // cancel their subscription and then replay /confirm with the old id to
+    // get the paid tier back (until the next /status reconcile) for free.
+    const subscription = session.subscription ? await stripe.subscriptions.retrieve(session.subscription) : null;
+    if (!subscription || (subscription.status !== "active" && subscription.status !== "trialing")) {
+      return res.json({ ok: true, inactive: true });
+    }
+
     if (session.metadata.purpose === "membership") {
       saveUser(req.user.id, {
         membershipTier: session.metadata.tierId,

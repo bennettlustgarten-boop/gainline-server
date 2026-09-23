@@ -150,13 +150,19 @@ router.post("/plans", requireRole("coach"), (req, res) => {
   if (!clientId || !amountUsd || !["payment", "subscription"].includes(mode)) {
     return res.status(400).json({ error: "clientId, amountUsd, and mode are required" });
   }
+  // Stored as-is and later fed to Stripe as unit_amount, so reject NaN,
+  // negatives, and absurd values here rather than failing at checkout time.
+  const amount = Number(amountUsd);
+  if (!Number.isFinite(amount) || amount <= 0 || amount > 100000) {
+    return res.status(400).json({ error: "Amount must be between $0.01 and $100,000" });
+  }
   if (!getClientIds(req.user.id).includes(clientId)) {
     return res.status(400).json({ error: "That's not one of your clients" });
   }
   const plan = {
     id: uid("plan_"),
     coachId: req.user.id,
-    amountUsd: Number(amountUsd),
+    amountUsd: amount,
     mode, // "payment" (one-time) or "subscription" (monthly)
     description: (description || "").trim(),
     status: "pending", // pending -> paid (one-time) or active (subscription) | cancelled
@@ -182,7 +188,10 @@ router.patch("/plans/:clientId/:planId", requireRole("coach"), async (req, res) 
   try {
     const { clientId, planId } = req.params;
     const { amountUsd, description } = req.body;
-    if (!amountUsd || Number(amountUsd) <= 0) return res.status(400).json({ error: "amountUsd is required" });
+    const newAmount = Number(amountUsd);
+    if (!Number.isFinite(newAmount) || newAmount <= 0 || newAmount > 100000) {
+      return res.status(400).json({ error: "Amount must be between $0.01 and $100,000" });
+    }
 
     const plan = getPaymentPlans(clientId).find((p) => p.id === planId);
     if (!plan || plan.coachId !== req.user.id) return res.status(404).json({ error: "Plan not found" });
@@ -190,7 +199,7 @@ router.patch("/plans/:clientId/:planId", requireRole("coach"), async (req, res) 
       return res.status(400).json({ error: `A ${plan.status} plan can't be edited — send a new one instead.` });
     }
 
-    const patch = { amountUsd: Number(amountUsd), description: (description ?? plan.description ?? "").trim() };
+    const patch = { amountUsd: newAmount, description: (description ?? plan.description ?? "").trim() };
 
     if (plan.status === "active" && plan.stripeSubscriptionId) {
       const subscription = await stripe.subscriptions.retrieve(plan.stripeSubscriptionId);
