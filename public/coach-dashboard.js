@@ -14,6 +14,7 @@ const CAMERA_ICON = `<svg width="30" height="30" viewBox="0 0 24 24" fill="none"
   document.getElementById("logout-btn").addEventListener("click", logout);
   setupSupportLink();
   setupDeleteAccountLink();
+  setupBlockedUsersLink(() => { CLIENTS = []; COACHES = []; });
 
   if (!ME.emailVerified) {
     showEmailVerifyGate(ME.email);
@@ -1274,7 +1275,13 @@ async function openThread(otherId, otherName) {
   document.querySelectorAll("[data-thread]").forEach((el) => el.classList.toggle("active", el.dataset.thread === otherId));
   const panel = document.getElementById("message-panel");
   panel.innerHTML = `
-    <div style="font-weight:700; margin-bottom:8px;">${escapeHtml(otherName)}</div>
+    <div class="flex-row" style="justify-content:space-between; margin-bottom:8px;">
+      <div style="font-weight:700;">${escapeHtml(otherName)}</div>
+      <div class="flex-row" style="gap:14px;">
+        <button type="button" class="safety-link" id="msg-report-user">Report</button>
+        <button type="button" class="safety-link danger" id="msg-block-user">Block</button>
+      </div>
+    </div>
     <div class="msg-thread" id="msg-thread"></div>
     <div class="msg-compose">
       <input type="text" id="msg-input" placeholder="Message..." />
@@ -1282,6 +1289,14 @@ async function openThread(otherId, otherName) {
     </div>
   `;
   await renderThread(otherId);
+  document.getElementById("msg-report-user").onclick = () => reportContent({ type: "user", targetUserId: otherId, targetName: otherName });
+  document.getElementById("msg-block-user").onclick = () => blockUserFlow(otherId, otherName, () => {
+    ACTIVE_THREAD = null;
+    CLIENTS = [];
+    COACHES = [];
+    document.getElementById("message-panel").innerHTML = `<p class="hint">${escapeHtml(otherName)} has been blocked.</p>`;
+    loadMessagesTab();
+  });
   document.getElementById("msg-send-btn").onclick = () => sendMessage(otherId);
   document.getElementById("msg-input").onkeydown = (e) => { if (e.key === "Enter") sendMessage(otherId); };
 }
@@ -1291,8 +1306,14 @@ async function renderThread(otherId) {
   const threadEl = document.getElementById("msg-thread");
   if (!threadEl) return;
   threadEl.innerHTML = messages.length
-    ? messages.map((m) => `<div class="bubble ${m.from === ME.id ? "me" : "them"}">${escapeHtml(m.text)}</div>`).join("")
+    ? messages.map((m) => m.from === ME.id
+        ? `<div class="bubble me">${escapeHtml(m.text)}</div>`
+        : `<div class="bubble them">${escapeHtml(m.text)}<button type="button" class="safety-link" data-report-msg="${m.id}">Report</button></div>`).join("")
     : `<div class="hint" style="text-align:center;">Say hello 👋</div>`;
+  threadEl.onclick = (e) => {
+    const btn = e.target.closest("[data-report-msg]");
+    if (btn) reportContent({ type: "message", targetUserId: otherId, refId: btn.dataset.reportMsg, targetName: ACTIVE_THREAD?.name });
+  };
   threadEl.scrollTop = threadEl.scrollHeight;
 }
 

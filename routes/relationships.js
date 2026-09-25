@@ -13,6 +13,7 @@ const {
   getInvite,
   getSheets,
   getCheckinSubmissions,
+  isBlockedEitherWay,
 } = require("../db");
 const { uid } = require("../lib/uid");
 const { publicUser } = require("../lib/publicUser");
@@ -43,6 +44,7 @@ router.post("/clients", requireRole("coach"), (req, res) => {
   if (getClientIds(req.user.id).includes(clientId)) {
     return res.status(400).json({ error: "Already one of your clients" });
   }
+  if (isBlockedEitherWay(req.user.id, clientId)) return res.status(403).json({ error: "You can't send a request to this user" });
 
   const currentCount = getClientIds(req.user.id).length;
   const tier = tierForCoach(req.user);
@@ -89,6 +91,7 @@ router.post("/connect", requireRole("client"), (req, res) => {
   const coach = getUser(coachId);
   if (!coach || coach.role !== "coach") return res.status(400).json({ error: "Coach not found" });
   if (getCoachIdForClient(req.user.id) === coachId) return res.json({ ok: true });
+  if (isBlockedEitherWay(req.user.id, coachId)) return res.status(403).json({ error: "You can't connect with this coach" });
 
   const currentCount = getClientIds(coachId).length;
   const tier = tierForCoach(coach);
@@ -118,6 +121,7 @@ router.post("/client-requests/:requestId/accept", requireRole("client"), (req, r
 
   const coach = getUser(request.coachId);
   if (!coach) return res.status(400).json({ error: "That coach's account no longer exists" });
+  if (isBlockedEitherWay(req.user.id, request.coachId)) return res.status(403).json({ error: "You can't connect with this coach" });
   const currentCount = getClientIds(request.coachId).length;
   const tier = tierForCoach(coach);
   if (currentCount >= tier.max) {

@@ -162,6 +162,99 @@ function setupDeleteAccountLink() {
   });
 }
 
+// ---- Safety: report content and block users (App Store guideline 1.2) --------
+// Every place a user can see something another user wrote (messages, coach
+// ads, reviews) gets a Report link, and every person gets a Block option.
+// Reports land in the admin dashboard.
+
+function openSafetyModal(innerHtml) {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay open";
+  overlay.innerHTML = `<div class="modal-card"><button type="button" class="modal-close" data-close>&times;</button>${innerHtml}</div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay || e.target.hasAttribute("data-close")) close();
+  });
+  return { overlay, close };
+}
+
+// details: { type: "message"|"ad"|"review"|"user", targetUserId, coachId?, refId?, targetName }
+function reportContent(details) {
+  const what = { message: "message", ad: "ad", review: "review", user: "user" }[details.type] || "content";
+  const { overlay, close } = openSafetyModal(`
+    <h2 style="margin-top:0;">Report this ${what}</h2>
+    <p class="hint">Tell us what's wrong${details.targetName ? ` with ${escapeHtml(details.targetName)}'s ${what}` : ""}. Our team reviews every report within 24 hours and removes anything that breaks our rules.</p>
+    <textarea data-reason rows="4" maxlength="500" placeholder="What's the problem?" style="width:100%; box-sizing:border-box; padding:10px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--text);"></textarea>
+    <button type="button" data-submit style="margin-top:12px;">Send report</button>
+    <div class="status" data-status></div>
+  `);
+  const statusEl = overlay.querySelector("[data-status]");
+  const submitBtn = overlay.querySelector("[data-submit]");
+  submitBtn.addEventListener("click", async () => {
+    const reason = overlay.querySelector("[data-reason]").value.trim();
+    if (!reason) return showStatus(statusEl, "Please describe the problem first.", "error");
+    submitBtn.disabled = true;
+    try {
+      await api("/safety/report", { method: "POST", body: JSON.stringify({ ...details, reason }) });
+      overlay.querySelector(".modal-card").innerHTML = `
+        <button type="button" class="modal-close" data-close>&times;</button>
+        <h2 style="margin-top:0;">Report sent</h2>
+        <p class="hint">Thanks for letting us know. Our team will review it within 24 hours. You can also block this user so they can't contact you.</p>
+        <button type="button" data-close>Done</button>`;
+    } catch (err) {
+      showStatus(statusEl, err.message, "error");
+      submitBtn.disabled = false;
+    }
+  });
+  return close;
+}
+
+function blockUserFlow(userId, name, onBlocked) {
+  const { overlay, close } = openSafetyModal(`
+    <h2 style="margin-top:0;">Block ${escapeHtml(name)}?</h2>
+    <p class="hint">They won't be able to message you or send you requests, you won't see their ads, and any coaching connection between you will end. You can unblock them any time from "Blocked users" at the bottom of the page.</p>
+    <button type="button" data-submit style="background:var(--danger); color:#1a0505;">Block ${escapeHtml(name)}</button>
+    <div class="status" data-status></div>
+  `);
+  const statusEl = overlay.querySelector("[data-status]");
+  overlay.querySelector("[data-submit]").addEventListener("click", async (e) => {
+    e.target.disabled = true;
+    try {
+      await api("/safety/block", { method: "POST", body: JSON.stringify({ userId }) });
+      close();
+      if (onBlocked) onBlocked();
+    } catch (err) {
+      showStatus(statusEl, err.message, "error");
+      e.target.disabled = false;
+    }
+  });
+}
+
+function setupBlockedUsersLink(onChange) {
+  const link = document.getElementById("blocked-users-link");
+  if (!link) return;
+  link.addEventListener("click", async (e) => {
+    e.preventDefault();
+    const { overlay } = openSafetyModal(`<h2 style="margin-top:0;">Blocked users</h2><div data-list><p class="hint">Loading...</p></div>`);
+    const listEl = overlay.querySelector("[data-list]");
+    const render = async () => {
+      const { blocked } = await api("/safety/blocked");
+      listEl.innerHTML = blocked.length
+        ? blocked.map((u) => `<div class="flex-row" style="justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border);"><span>${escapeHtml(u.name)} <span class="hint">@${escapeHtml(u.username)}</span></span><button type="button" class="small-btn secondary" data-unblock="${u.id}" style="margin-top:0;">Unblock</button></div>`).join("")
+        : `<p class="hint">You haven't blocked anyone.</p>`;
+      listEl.querySelectorAll("[data-unblock]").forEach((btn) => {
+        btn.onclick = async () => {
+          await api(`/safety/block/${btn.dataset.unblock}`, { method: "DELETE" });
+          await render();
+          if (onChange) onChange();
+        };
+      });
+    };
+    render().catch((err) => { listEl.innerHTML = `<p class="hint">${escapeHtml(err.message)}</p>`; });
+  });
+}
+
 // Coach/client names and other user-entered text get rendered into innerHTML
 // in a few places, so escape them first to avoid stored/reflected XSS.
 function escapeHtml(value) {

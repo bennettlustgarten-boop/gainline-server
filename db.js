@@ -360,6 +360,29 @@ function deleteSupportRequest(id) {
   setItem("supportRequests", "_all", getItem("supportRequests", "_all", []).filter((r) => r.id !== id));
 }
 
+// ---- Blocking (App Store guideline 1.2: users can block abusive users) --------
+// blocks/<blockerId> = [blockedId, ...]. Blocking is checked in both
+// directions everywhere (messaging, connection requests, ad feed) so neither
+// side can contact the other once either has blocked.
+
+function getBlockedIds(userId) {
+  return getItem("blocks", userId, []);
+}
+
+function addBlock(blockerId, blockedId) {
+  const current = getBlockedIds(blockerId);
+  if (current.includes(blockedId)) return current;
+  return setItem("blocks", blockerId, [...current, blockedId]);
+}
+
+function removeBlock(blockerId, blockedId) {
+  return setItem("blocks", blockerId, getBlockedIds(blockerId).filter((id) => id !== blockedId));
+}
+
+function isBlockedEitherWay(userIdA, userIdB) {
+  return getBlockedIds(userIdA).includes(userIdB) || getBlockedIds(userIdB).includes(userIdA);
+}
+
 // ---- Admin -------------------------------------------------------------------
 
 function listAllUsers() {
@@ -438,6 +461,11 @@ function deleteUserCascade(userId) {
     }
   }
 
+  if (getItem("blocks", userId, null) !== null) {
+    deleted.push(`blocks/${userId}`);
+    deleteItem("blocks", userId);
+  }
+
   const messages = getCollection("messages");
   for (const key of Object.keys(messages)) {
     if (key.split("_").includes(userId)) {
@@ -505,4 +533,8 @@ module.exports = {
   deleteSupportRequest,
   listAllUsers,
   deleteUserCascade,
+  getBlockedIds,
+  addBlock,
+  removeBlock,
+  isBlockedEitherWay,
 };

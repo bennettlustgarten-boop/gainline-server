@@ -21,6 +21,7 @@ const calendarRoutes = require("./routes/calendar");
 const reviewRoutes = require("./routes/reviews");
 const noteRoutes = require("./routes/notes");
 const supportRoutes = require("./routes/support");
+const safetyRoutes = require("./routes/safety");
 const webhookRoutes = require("./routes/webhooks");
 const adminRoutes = require("./routes/admin");
 
@@ -114,6 +115,7 @@ app.use("/api/calendar", calendarRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/notes", noteRoutes);
 app.use("/api/support", supportRoutes);
+app.use("/api/safety", safetyRoutes);
 app.use("/api/admin", adminRoutes);
 
 // The front-end (plain HTML/CSS/JS) lives in /public, served from here too.

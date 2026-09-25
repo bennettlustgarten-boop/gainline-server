@@ -10,6 +10,7 @@ let sheetFilter = "all";
   document.getElementById("logout-btn").addEventListener("click", logout);
   setupSupportLink();
   setupDeleteAccountLink();
+  setupBlockedUsersLink(() => { try { loadFind(); } catch {} });
 
   if (!ME.emailVerified) {
     showEmailVerifyGate(ME.email);
@@ -476,7 +477,13 @@ async function loadMessages() {
     return;
   }
   card.innerHTML = `
-    <div style="font-weight:700; margin-bottom:8px;">${escapeHtml(MY_COACH.name)}</div>
+    <div class="flex-row" style="justify-content:space-between; margin-bottom:8px;">
+      <div style="font-weight:700;">${escapeHtml(MY_COACH.name)}</div>
+      <div class="flex-row" style="gap:14px;">
+        <button type="button" class="safety-link" id="msg-report-user">Report</button>
+        <button type="button" class="safety-link danger" id="msg-block-user">Block</button>
+      </div>
+    </div>
     <div class="msg-thread" id="msg-thread"></div>
     <div class="msg-compose">
       <input type="text" id="msg-input" placeholder="Message..." />
@@ -484,6 +491,8 @@ async function loadMessages() {
     </div>
   `;
   await renderThread();
+  document.getElementById("msg-report-user").onclick = () => reportContent({ type: "user", targetUserId: MY_COACH.id, targetName: MY_COACH.name });
+  document.getElementById("msg-block-user").onclick = () => blockUserFlow(MY_COACH.id, MY_COACH.name, () => { MY_COACH = null; loadMessages(); });
   document.getElementById("msg-send-btn").onclick = sendMessage;
   document.getElementById("msg-input").onkeydown = (e) => { if (e.key === "Enter") sendMessage(); };
 }
@@ -493,8 +502,14 @@ async function renderThread() {
   const threadEl = document.getElementById("msg-thread");
   if (!threadEl) return;
   threadEl.innerHTML = messages.length
-    ? messages.map((m) => `<div class="bubble ${m.from === ME.id ? "me" : "them"}">${escapeHtml(m.text)}</div>`).join("")
+    ? messages.map((m) => m.from === ME.id
+        ? `<div class="bubble me">${escapeHtml(m.text)}</div>`
+        : `<div class="bubble them">${escapeHtml(m.text)}<button type="button" class="safety-link" data-report-msg="${m.id}">Report</button></div>`).join("")
     : `<div class="hint" style="text-align:center;">Say hello 👋</div>`;
+  threadEl.onclick = (e) => {
+    const btn = e.target.closest("[data-report-msg]");
+    if (btn) reportContent({ type: "message", targetUserId: MY_COACH.id, refId: btn.dataset.reportMsg, targetName: MY_COACH.name });
+  };
   threadEl.scrollTop = threadEl.scrollHeight;
 }
 
@@ -532,6 +547,15 @@ async function loadFind() {
   listEl.querySelectorAll("[data-view-profile]").forEach((el) => {
     el.onclick = () => openCoachProfile(el.dataset.viewProfile, el.dataset.name, el.dataset.username);
   });
+  listEl.querySelectorAll("[data-report-ad]").forEach((btn) => {
+    btn.onclick = () => reportContent({ type: "ad", targetUserId: btn.dataset.reportAd, targetName: btn.dataset.name });
+  });
+  listEl.querySelectorAll("[data-block-user]").forEach((btn) => {
+    btn.onclick = () => blockUserFlow(btn.dataset.blockUser, btn.dataset.name, async () => {
+      if (MY_COACH && MY_COACH.id === btn.dataset.blockUser) MY_COACH = null;
+      await loadFind();
+    });
+  });
 }
 
 function adMediaHtml(ad) {
@@ -568,6 +592,10 @@ function adCardHtml(ad) {
         ${ad.atCap
           ? `<button class="secondary" disabled style="width:100%;">Fully booked</button>`
           : `<button data-connect="${ad.coachId}" style="width:100%;">Request to connect</button>`}
+        <div class="safety-row">
+          <button type="button" class="safety-link" data-report-ad="${ad.coachId}" data-name="${escapeHtml(ad.coachName)}">Report</button>
+          <button type="button" class="safety-link danger" data-block-user="${ad.coachId}" data-name="${escapeHtml(ad.coachName)}">Block</button>
+        </div>
       </div>
     </div>
   `;
@@ -688,9 +716,13 @@ function renderCoachProfileBody(coachId, coach, reviews, average, count, isMyCoa
         </div>
         <div style="font-weight:700; margin-top:2px;">${escapeHtml(r.clientName)}</div>
         ${r.comment ? `<div class="hint" style="margin-top:2px;">${escapeHtml(r.comment)}</div>` : ""}
+        <button type="button" class="safety-link" data-report-review="${r.id}" style="margin-top:6px;">Report</button>
       </div>
     `).join("") : `<div class="hint" style="margin-top:8px;">No reviews yet.</div>`}
   `;
+  document.getElementById("coach-profile-body").querySelectorAll("[data-report-review]").forEach((btn) => {
+    btn.onclick = () => reportContent({ type: "review", coachId, refId: btn.dataset.reportReview });
+  });
 
   if (isMyCoach) {
     renderProfileStarPicker();

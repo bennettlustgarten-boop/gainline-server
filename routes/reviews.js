@@ -3,6 +3,7 @@ const router = express.Router();
 const { getUser, getCoachIdForClient, upsertReview, getReviews } = require("../db");
 const { uid } = require("../lib/uid");
 const { requireRole } = require("../middleware/auth");
+const { isObjectionable, REJECTION_MESSAGE } = require("../lib/contentFilter");
 
 function summarize(coachId) {
   const reviews = getReviews(coachId);
@@ -42,6 +43,7 @@ router.post("/", requireRole("client"), (req, res) => {
   }
   const coach = getUser(coachId);
   if (!coach || coach.role !== "coach") return res.status(404).json({ error: "Coach not found" });
+  if (isObjectionable(comment)) return res.status(400).json({ error: REJECTION_MESSAGE });
 
   const review = {
     id: uid("rev_"),

@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const rateLimit = require("express-rate-limit");
-const { getUser, getMessages, addMessage, getCoachIdForClient, getClientIds } = require("../db");
+const { getUser, getMessages, addMessage, getCoachIdForClient, getClientIds, isBlockedEitherWay } = require("../db");
 const { uid } = require("../lib/uid");
 const { requireVerified } = require("../middleware/auth");
 
@@ -24,6 +24,7 @@ const sendLimiter = rateLimit({
 function canMessage(me, otherId) {
   const other = getUser(otherId);
   if (!other) return false;
+  if (isBlockedEitherWay(me.id, otherId)) return false;
   if (me.role === "client") {
     return getCoachIdForClient(me.id) === otherId;
   }

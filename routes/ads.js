@@ -3,7 +3,8 @@ const router = express.Router();
 const fs = require("fs");
 const path = require("path");
 const multer = require("multer");
-const { listAds, upsertAd, removeAd, getUser, getClientIds, getReviews } = require("../db");
+const { listAds, upsertAd, removeAd, getUser, getClientIds, getReviews, isBlockedEitherWay } = require("../db");
+const { isObjectionable, REJECTION_MESSAGE } = require("../lib/contentFilter");
 const { tierForCoach, adsIncluded } = require("../lib/tiers");
 const { uid } = require("../lib/uid");
 const { isRecognizedImage } = require("../lib/fileSignature");
@@ -44,7 +45,9 @@ const upload = multer({
 });
 
 router.get("/", (req, res) => {
+  const viewerId = req.session?.userId || null;
   const ads = listAds()
+    .filter((ad) => !viewerId || !isBlockedEitherWay(viewerId, ad.coachId))
     .map((ad) => {
       const coach = getUser(ad.coachId);
       if (!coach || !adsIncluded(coach)) return null;
@@ -86,6 +89,7 @@ router.post(
     }
     const { caption, mediaNote } = req.body;
     if (!caption?.trim()) return res.status(400).json({ error: "caption is required" });
+    if (isObjectionable(caption) || isObjectionable(mediaNote)) return res.status(400).json({ error: REJECTION_MESSAGE });
 
     if (req.file && req.file.mimetype.startsWith("image/")) {
       const head = Buffer.alloc(12);

@@ -1049,3 +1049,10 @@ section[data-tab-panel].active {
 .site-footer a {
   color: var(--text-dim);
 }
+
+/* Report / block links (App Store guideline 1.2) */
+.safety-link { font-size: 12px; color: var(--muted, #9aa0a6); text-decoration: underline; cursor: pointer; background: none; border: 0; padding: 0; margin-top: 0; width: auto; }
+.safety-link:hover { color: var(--text); }
+.safety-link.danger { color: var(--danger); }
+.bubble .safety-link { display: block; margin-top: 4px; opacity: 0.75; }
+.safety-row { margin-top: 10px; display: flex; gap: 14px; }

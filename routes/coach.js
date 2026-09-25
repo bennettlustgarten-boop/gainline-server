@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const Stripe = require("stripe");
-const { saveUser, listOnboardedCoaches } = require("../db");
+const { saveUser, listOnboardedCoaches, isBlockedEitherWay } = require("../db");
 const { requireRole } = require("../middleware/auth");
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -55,7 +55,8 @@ router.get("/status", requireRole("coach"), async (req, res) => {
 // Public list of coaches who've finished payout setup — used by the client
 // "browse coaches" / pay page. Only ever exposes coachId/name, never Stripe IDs.
 router.get("/list", (req, res) => {
-  res.json({ coaches: listOnboardedCoaches() });
+  const viewerId = req.session?.userId || null;
+  res.json({ coaches: listOnboardedCoaches().filter((c) => !viewerId || !isBlockedEitherWay(viewerId, c.coachId)) });
 });
 
 const CLIENT_COUNT_BANDS = ["0", "1-2", "3-5", "6-15", "16+"];
