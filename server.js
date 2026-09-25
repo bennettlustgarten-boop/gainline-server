@@ -1,4 +1,5 @@
 require("dotenv").config();
+const fs = require("fs");
 const path = require("path");
 const express = require("express");
 const helmet = require("helmet");
@@ -136,7 +137,27 @@ app.use(["/coach-dashboard.html", "/client-dashboard.html", "/admin-dashboard.ht
   res.set("Cache-Control", "no-store");
   next();
 });
-app.use(express.static(path.join(__dirname, "public")));
+// Cache-busting for scripts and styles. Cloudflare and phones cache /app.js
+// and friends for hours (max-age=14400), so after a deploy users kept running
+// old JavaScript against the new server — new buttons missing, or new pages
+// calling functions the cached app.js doesn't have. HTML is always
+// revalidated, so every page is served with each script/stylesheet URL
+// stamped with this deploy's id (?v=...): a new deploy means new URLs, which
+// nothing has cached. RENDER_GIT_COMMIT is set by Render on every deploy.
+const BUILD_ID = (process.env.RENDER_GIT_COMMIT || String(Date.now())).slice(0, 12);
+const PUBLIC_DIR = path.join(__dirname, "public");
+function servePageWithVersionedAssets(req, res, next) {
+  const name = req.path === "/" ? "index.html" : req.path.slice(1);
+  if (!/^[\w-]+\.html$/.test(name)) return next();
+  fs.readFile(path.join(PUBLIC_DIR, name), "utf8", (err, html) => {
+    if (err) return next();
+    if (!res.getHeader("Cache-Control")) res.set("Cache-Control", "no-cache");
+    res.type("html").send(html.replace(/((?:src|href)=")(\/[\w-]+\.(?:js|css))(")/g, `$1$2?v=${BUILD_ID}$3`));
+  });
+}
+app.get(/^\/([\w-]+\.html)?$/, servePageWithVersionedAssets);
+
+app.use(express.static(PUBLIC_DIR));
 
 const PORT = process.env.PORT || 4242;
 app.listen(PORT, () => {
