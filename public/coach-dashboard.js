@@ -1274,9 +1274,14 @@ async function openThread(otherId, otherName) {
   ACTIVE_THREAD = { id: otherId, name: otherName };
   document.querySelectorAll("[data-thread]").forEach((el) => el.classList.toggle("active", el.dataset.thread === otherId));
   const panel = document.getElementById("message-panel");
+  // On phones only one of (people list, conversation) shows at a time.
+  document.querySelector(".messages-layout")?.classList.add("thread-open");
   panel.innerHTML = `
     <div class="flex-row" style="justify-content:space-between; margin-bottom:8px;">
-      <div style="font-weight:700;">${escapeHtml(otherName)}</div>
+      <div class="flex-row" style="gap:10px;">
+        <button type="button" class="safety-link msg-back" id="msg-back">&lsaquo; Back</button>
+        <div style="font-weight:700;">${escapeHtml(otherName)}</div>
+      </div>
       <div class="flex-row" style="gap:14px;">
         <button type="button" class="safety-link" id="msg-report-user">Report</button>
         <button type="button" class="safety-link danger" id="msg-block-user">Block</button>
@@ -1289,11 +1294,17 @@ async function openThread(otherId, otherName) {
     </div>
   `;
   await renderThread(otherId);
+  document.getElementById("msg-back").onclick = () => {
+    ACTIVE_THREAD = null;
+    document.querySelector(".messages-layout")?.classList.remove("thread-open");
+    document.querySelectorAll("[data-thread]").forEach((el) => el.classList.remove("active"));
+  };
   document.getElementById("msg-report-user").onclick = () => reportContent({ type: "user", targetUserId: otherId, targetName: otherName });
   document.getElementById("msg-block-user").onclick = () => blockUserFlow(otherId, otherName, () => {
     ACTIVE_THREAD = null;
     CLIENTS = [];
     COACHES = [];
+    document.querySelector(".messages-layout")?.classList.remove("thread-open");
     document.getElementById("message-panel").innerHTML = `<p class="hint">${escapeHtml(otherName)} has been blocked.</p>`;
     loadMessagesTab();
   });

@@ -1056,3 +1056,29 @@ section[data-tab-panel].active {
 .safety-link.danger { color: var(--danger); }
 .bubble .safety-link { display: block; margin-top: 4px; opacity: 0.75; }
 .safety-row { margin-top: 10px; display: flex; gap: 14px; }
+
+/* Messages layout — side-by-side on desktop; on phones show either the list
+   of people or the open conversation, full width, with a Back button. */
+.messages-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+.msg-back { display: none; }
+.msg-compose input { min-width: 0; }
+
+@media (max-width: 720px) {
+  .messages-layout { grid-template-columns: 1fr; }
+  .messages-layout.thread-open .thread-list-card { display: none; }
+  .messages-layout:not(.thread-open) .message-panel-card { display: none; }
+  .msg-back { display: inline-block; font-size: 15px; }
+  .thread-list { max-height: none; }
+  .thread-list .thread-item { padding: 14px 12px; font-size: 16px; }
+  /* tall enough to actually read a conversation; leaves room for the header, tabs and compose box */
+  .msg-thread { height: 55vh; height: calc(100dvh - 380px); min-height: 260px; max-height: 560px; }
+  .bubble { max-width: 85%; font-size: 15px; }
+  /* 16px stops iOS Safari from zooming the page when the box is focused */
+  .msg-compose input { font-size: 16px; }
+  .msg-compose button { padding-left: 16px; padding-right: 16px; }
+}
