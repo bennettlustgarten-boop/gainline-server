@@ -20,6 +20,16 @@ async function getOrCreateCustomer(user) {
   return customer.id;
 }
 
+// Switching between paid tiers goes through a brand-new Checkout
+// subscription, so once it's live the coach's previous membership
+// subscription has to be cancelled — otherwise it kept billing them
+// alongside the new one, with nothing on file pointing at it anymore.
+async function cancelReplacedMembership(user, newSubId) {
+  const oldSubId = user?.membershipSubId;
+  if (!oldSubId || !newSubId || oldSubId === newSubId) return;
+  await stripe.subscriptions.cancel(oldSubId).catch((err) => console.error("Failed to cancel replaced membership:", err.message));
+}
+
 // Webhooks are the source of truth in production, but they need a public URL
 // (or `stripe listen` locally) to be delivered at all. As a fallback for
 // local testing without that set up, re-check any pending subscription
@@ -83,6 +93,7 @@ router.post("/confirm", requireRole("coach"), async (req, res) => {
     }
 
     if (session.metadata.purpose === "membership") {
+      await cancelReplacedMembership(req.user, session.subscription);
       saveUser(req.user.id, {
         membershipTier: session.metadata.tierId,
         membershipStatus: "active",
@@ -197,3 +208,4 @@ router.post("/ads/cancel", requireRole("coach"), async (req, res) => {
 });
 
 module.exports = router;
+module.exports.cancelReplacedMembership = cancelReplacedMembership;

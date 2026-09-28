@@ -84,12 +84,16 @@ router.post(
     });
   },
   (req, res) => {
-    if (!adsIncluded(req.user)) {
-      return res.status(402).json({ error: "Subscribe to the advertising add-on before posting an ad" });
-    }
+    // multer has already written the upload to disk by now — drop it if the
+    // ad is rejected, or every refused attempt leaves an orphaned file behind.
+    const reject = (status, error) => {
+      if (req.file) fs.unlink(req.file.path, () => {});
+      return res.status(status).json({ error });
+    };
+    if (!adsIncluded(req.user)) return reject(402, "Subscribe to the advertising add-on before posting an ad");
     const { caption, mediaNote } = req.body;
-    if (!caption?.trim()) return res.status(400).json({ error: "caption is required" });
-    if (isObjectionable(caption) || isObjectionable(mediaNote)) return res.status(400).json({ error: REJECTION_MESSAGE });
+    if (!caption?.trim()) return reject(400, "caption is required");
+    if (isObjectionable(caption) || isObjectionable(mediaNote)) return reject(400, REJECTION_MESSAGE);
 
     if (req.file && req.file.mimetype.startsWith("image/")) {
       const head = Buffer.alloc(12);

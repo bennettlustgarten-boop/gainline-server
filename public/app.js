@@ -116,9 +116,9 @@ function setupDeleteAccountLink() {
     <div class="modal-card">
       <button type="button" class="modal-close" id="delete-account-modal-close">&times;</button>
       <h2 style="margin-top:0;">Delete your account</h2>
-      <p class="hint">This permanently deletes your account and everything tied to it — sheets, check-ins, messages, notes, payment plans, calendar data. This can't be undone.</p>
+      <p class="hint">This permanently deletes your account and everything tied to it — sheets, check-ins, messages, notes, payment plans, calendar data — and cancels any Gainline membership or ad subscription you pay for. This can't be undone.</p>
       <label for="delete-account-password">Enter your password to confirm</label>
-      <input type="password" id="delete-account-password" placeholder="Your password" />
+      <input type="password" id="delete-account-password" placeholder="Your password" autocomplete="current-password" />
       <button type="button" id="delete-account-submit-btn" style="margin-top:12px; background:var(--danger); color:#1a0505;">Permanently delete my account</button>
       <div class="status" id="delete-account-status"></div>
     </div>
@@ -257,10 +257,16 @@ function setupBlockedUsersLink(onChange) {
 
 // Coach/client names and other user-entered text get rendered into innerHTML
 // in a few places, so escape them first to avoid stored/reflected XSS.
+// Quotes must be escaped too: many of these values land inside attributes
+// (data-name="..."), where a name like  x" onclick="...  would otherwise
+// break out of the attribute and run script in the viewer's browser.
 function escapeHtml(value) {
-  const div = document.createElement("div");
-  div.textContent = value == null ? "" : String(value);
-  return div.innerHTML;
+  return (value == null ? "" : String(value))
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 // Belt-and-suspenders alongside the Cache-Control: no-store header the

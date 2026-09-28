@@ -184,6 +184,8 @@ router.post(
       res.json({ submissions: addCheckinSubmission(req.user.id, submission) });
     } catch (err) {
       console.error(err);
+      // e.g. malformed answers/photoMeta JSON — don't leave the uploads behind.
+      [...(req.files?.photos || []), ...(req.files?.video || [])].forEach((u) => fs.unlink(u.path, () => {}));
       res.status(400).json({ error: "Invalid submission" });
     }
   }

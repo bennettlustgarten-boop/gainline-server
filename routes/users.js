@@ -1,13 +1,17 @@
 const express = require("express");
 const router = express.Router();
-const { searchClients, getUser } = require("../db");
+const { searchClients, getUser, isBlockedEitherWay } = require("../db");
 const { publicUser } = require("../lib/publicUser");
-const { requireVerified } = require("../middleware/auth");
+const { requireVerified, requireRole } = require("../middleware/auth");
 
-router.get("/search", requireVerified, (req, res) => {
+// Only the coach dashboard's "add a client" box uses this — clients had no
+// reason to be able to page through every other client on the platform.
+// Capped so a one-letter query can't dump the whole user list either.
+router.get("/search", requireRole("coach"), (req, res) => {
   const q = (req.query.q || "").trim();
   if (!q) return res.json({ users: [] });
-  res.json({ users: searchClients(q).map(publicUser) });
+  const users = searchClients(q).filter((u) => !isBlockedEitherWay(req.user.id, u.id)).slice(0, 20);
+  res.json({ users: users.map(publicUser) });
 });
 
 router.get("/:id", requireVerified, (req, res) => {

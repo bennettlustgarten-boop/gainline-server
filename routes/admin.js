@@ -14,6 +14,8 @@ const {
   deleteSupportRequest,
 } = require("../db");
 const { requireAdmin } = require("../middleware/auth");
+const { cancelUserSubscriptions } = require("../lib/cancelSubscriptions");
+const { destroySessionsForUser } = require("../lib/sqliteSessionStore");
 
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
@@ -122,11 +124,13 @@ router.post("/users/:userId/reset-password", requireAdmin, async (req, res) => {
 
   const passwordHash = await bcrypt.hash(newPassword, 10);
   saveUser(userId, { passwordHash, passwordResetToken: null, passwordResetTokenExpires: null });
+  destroySessionsForUser(userId);
   res.json({ ok: true });
 });
 
-router.delete("/users/:userId", requireAdmin, (req, res) => {
+router.delete("/users/:userId", requireAdmin, async (req, res) => {
   const { userId } = req.params;
+  await cancelUserSubscriptions(getUser(userId));
   const result = deleteUserCascade(userId);
   if (!result) return res.status(404).json({ error: "User not found" });
   res.json({ ok: true, deleted: result.deleted });

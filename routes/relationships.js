@@ -90,7 +90,11 @@ router.post("/connect", requireRole("client"), (req, res) => {
   const { coachId } = req.body;
   const coach = getUser(coachId);
   if (!coach || coach.role !== "coach") return res.status(400).json({ error: "Coach not found" });
-  if (getCoachIdForClient(req.user.id) === coachId) return res.json({ ok: true });
+  const currentCoachId = getCoachIdForClient(req.user.id);
+  if (currentCoachId === coachId) return res.json({ ok: true });
+  // One coach at a time — without this, connecting from the ad feed while
+  // already coached left the client on BOTH coaches' rosters.
+  if (currentCoachId) return res.status(400).json({ error: "You already have a coach. Disconnect from them on your Home tab first." });
   if (isBlockedEitherWay(req.user.id, coachId)) return res.status(403).json({ error: "You can't connect with this coach" });
 
   const currentCount = getClientIds(coachId).length;
@@ -105,6 +109,7 @@ router.post("/connect", requireRole("client"), (req, res) => {
 // The logged-in client's pending "a coach wants to add you" requests.
 router.get("/client-requests", requireRole("client"), (req, res) => {
   const requests = getClientRequests(req.user.id)
+    .filter((r) => !isBlockedEitherWay(req.user.id, r.coachId))
     .map((r) => {
       const coach = getUser(r.coachId);
       return coach ? { id: r.id, coachId: r.coachId, coachName: coach.name, coachUsername: coach.username, bio: coach.bio || "", createdAt: r.createdAt } : null;
@@ -121,6 +126,10 @@ router.post("/client-requests/:requestId/accept", requireRole("client"), (req, r
 
   const coach = getUser(request.coachId);
   if (!coach) return res.status(400).json({ error: "That coach's account no longer exists" });
+  const currentCoachId = getCoachIdForClient(req.user.id);
+  if (currentCoachId && currentCoachId !== request.coachId) {
+    return res.status(400).json({ error: "You already have a coach. Disconnect from them on your Home tab first, then accept this request." });
+  }
   if (isBlockedEitherWay(req.user.id, request.coachId)) return res.status(403).json({ error: "You can't connect with this coach" });
   const currentCount = getClientIds(request.coachId).length;
   const tier = tierForCoach(coach);

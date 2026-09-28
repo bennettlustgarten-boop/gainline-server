@@ -216,6 +216,9 @@ const TAB_LOADERS = {
 function activateTab(tab) {
   if (!TAB_LOADERS[tab]) tab = "overview";
   document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
+  // On phones the tab bar scrolls sideways — keep the active tab in view
+  // (e.g. when a link or checkout redirect opens straight to ?tab=membership).
+  document.querySelector(`.tab-btn[data-tab="${tab}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
   document.querySelectorAll("[data-tab-panel]").forEach((p) => p.classList.toggle("active", p.dataset.tabPanel === tab));
   TAB_LOADERS[tab]();
 }
@@ -316,7 +319,7 @@ async function loadClients() {
         <div class="card flex-row" style="justify-content:space-between; cursor:pointer;" data-open-client="${c.id}" data-client-name="${escapeHtml(c.name)}" data-client-username="${escapeHtml(c.username)}">
           <div>
             <div style="font-weight:700;">${escapeHtml(c.name)} <span class="hint">@${escapeHtml(c.username)}</span></div>
-            <div class="hint">${c.sheetCount || 0} sheets &middot; ${c.checkinCount || 0} check-ins</div>
+            <div class="hint">${c.sheetCount || 0} sheet${c.sheetCount === 1 ? "" : "s"} &middot; ${c.checkinCount || 0} check-in${c.checkinCount === 1 ? "" : "s"}</div>
           </div>
           <span class="hint">View profile &rarr;</span>
         </div>
@@ -488,10 +491,16 @@ function renderCalendarBuilder() {
           clientId,
           typeLabel,
           title: document.getElementById("cal-title").value,
-          startAt,
+          // datetime-local/date inputs have no timezone — convert here, in
+          // the coach's own timezone, to an exact instant. Sent raw, the
+          // server (UTC on Render) read "10:00" as 10:00 UTC, so events
+          // showed up hours off for everyone.
+          startAt: new Date(startAt).toISOString(),
           durationMinutes: document.getElementById("cal-duration").value,
           recurrence: calRecurrence,
-          until: calRecurrence === "weekly" ? document.getElementById("cal-until").value || null : null,
+          until: calRecurrence === "weekly" && document.getElementById("cal-until").value
+            ? new Date(`${document.getElementById("cal-until").value}T23:59:59`).toISOString()
+            : null,
         }),
       });
       showStatus(statusEl, "Scheduled!", "info");

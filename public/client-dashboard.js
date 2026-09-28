@@ -57,6 +57,9 @@ const TAB_LOADERS = {
 function activateTab(tab) {
   if (!TAB_LOADERS[tab]) tab = "home";
   document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
+  // On phones the tab bar scrolls sideways — keep the active tab in view
+  // (e.g. when a link or checkout redirect opens straight to ?tab=membership).
+  document.querySelector(`.tab-btn[data-tab="${tab}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
   document.querySelectorAll("[data-tab-panel]").forEach((p) => p.classList.toggle("active", p.dataset.tabPanel === tab));
   TAB_LOADERS[tab]();
 }
@@ -535,9 +538,9 @@ async function loadFind() {
       btn.disabled = true;
       try {
         await api("/connect", { method: "POST", body: JSON.stringify({ coachId: btn.dataset.connect }) });
-        btn.textContent = "Request sent";
         const { coach } = await api("/my-coach");
         MY_COACH = coach;
+        await loadFind();
       } catch (err) {
         alert(err.message);
         btn.disabled = false;
@@ -589,7 +592,11 @@ function adCardHtml(ad) {
           <span class="pill ${ad.atCap ? "" : "ok"}">${ad.atCap ? "Fully booked" : ad.spotsLeft == null ? "Open" : `${ad.spotsLeft} spot${ad.spotsLeft === 1 ? "" : "s"} open`}</span>
         </div>
         <div style="margin-top:8px; font-size:14px;"><b>@${escapeHtml(ad.coachUsername || "coach")}</b> ${escapeHtml(ad.caption)}</div>
-        ${ad.atCap
+        ${MY_COACH && MY_COACH.id === ad.coachId
+          ? `<button class="secondary" disabled style="width:100%;">Your coach</button>`
+          : MY_COACH
+          ? `<button class="secondary" disabled style="width:100%;">You already have a coach</button>`
+          : ad.atCap
           ? `<button class="secondary" disabled style="width:100%;">Fully booked</button>`
           : `<button data-connect="${ad.coachId}" style="width:100%;">Request to connect</button>`}
         <div class="safety-row">
@@ -729,6 +736,7 @@ function renderCoachProfileBody(coachId, coach, reviews, average, count, isMyCoa
     document.getElementById("profile-review-submit").onclick = async () => {
       const statusEl = document.getElementById("profile-review-status");
       const comment = document.getElementById("profile-review-comment").value;
+      if (!profileDraftStars) return showStatus(statusEl, "Tap a star rating first.", "error");
       try {
         const result = await api("/reviews", { method: "POST", body: JSON.stringify({ coachId, stars: profileDraftStars, comment }) });
         showStatus(statusEl, "Thanks for the review!", "info");

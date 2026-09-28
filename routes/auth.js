@@ -19,6 +19,20 @@ const { publicUser } = require("../lib/publicUser");
 const { tierForCoach } = require("../lib/tiers");
 const { sendMail, configured: mailerConfigured } = require("../lib/mailer");
 const { requireAuth } = require("../middleware/auth");
+const { cancelUserSubscriptions } = require("../lib/cancelSubscriptions");
+const { destroySessionsForUser } = require("../lib/sqliteSessionStore");
+
+// Fresh session id on every login/signup, so a session id planted in the
+// browser before login (session fixation) never becomes an authenticated one.
+function startSession(req, userId) {
+  return new Promise((resolve, reject) => {
+    req.session.regenerate((err) => {
+      if (err) return reject(err);
+      req.session.userId = userId;
+      resolve();
+    });
+  });
+}
 
 const USERNAME_RE = /^[a-z0-9_.]{3,20}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -159,7 +173,7 @@ router.post("/signup", signupLimiter, async (req, res) => {
       }
     }
 
-    req.session.userId = id;
+    await startSession(req, id);
     res.json({ user: publicUser(user), inviteNotice });
   } catch (err) {
     console.error(err);
@@ -184,7 +198,7 @@ router.post("/login", loginLimiter, async (req, res) => {
     const ok = await bcrypt.compare(password, user?.passwordHash || DUMMY_HASH);
     if (!user || !ok) return res.status(401).json({ error: "Invalid username or password" });
 
-    req.session.userId = user.id;
+    await startSession(req, user.id);
     res.json({ user: publicUser(user) });
   } catch (err) {
     console.error(err);
@@ -215,6 +229,7 @@ router.delete("/me", requireAuth, async (req, res) => {
   const ok = await bcrypt.compare(password, req.user.passwordHash || "");
   if (!ok) return res.status(401).json({ error: "Incorrect password" });
 
+  await cancelUserSubscriptions(req.user);
   deleteUserCascade(req.user.id);
   req.session.destroy(() => res.json({ ok: true }));
 });
@@ -305,6 +320,7 @@ router.post("/reset-password", tokenLimiter, async (req, res) => {
 
   const passwordHash = await bcrypt.hash(password, 10);
   saveUser(user.id, { passwordHash, passwordResetToken: null, passwordResetTokenExpires: null });
+  destroySessionsForUser(user.id);
   res.json({ ok: true });
 });
 

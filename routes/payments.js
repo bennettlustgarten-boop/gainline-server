@@ -9,6 +9,7 @@ const {
   addPaymentPlan,
   getPaymentPlans,
   updatePaymentPlan,
+  isBlockedEitherWay,
 } = require("../db");
 const { tierForCoach } = require("../lib/tiers");
 const { uid } = require("../lib/uid");
@@ -47,6 +48,12 @@ router.post("/checkout", requireRole("client"), async (req, res) => {
 
     if (!coachId || !amountUsd || !mode) {
       return res.status(400).json({ error: "coachId, amountUsd, and mode are required" });
+    }
+    // Custom amounts (no planId) come straight from the pay page, so bound
+    // them the same way /plans does — Stripe's own minimum is $0.50.
+    const amountNum = Number(amountUsd);
+    if (!["payment", "subscription"].includes(mode) || !Number.isFinite(amountNum) || amountNum < 0.5 || amountNum > 100000) {
+      return res.status(400).json({ error: "Amount must be between $0.50 and $100,000" });
     }
 
     const coach = getUser(coachId);
@@ -97,7 +104,10 @@ router.post("/checkout", requireRole("client"), async (req, res) => {
     // Paying a coach also connects the client to them, so they show up on
     // each other's Messages/Sheets tabs going forward — as long as the coach
     // has an open slot on their current membership tier.
-    if (getCoachIdForClient(req.user.id) !== coachId) {
+    // Only when the client has no coach yet: a client already coached by
+    // someone else would otherwise land on two rosters at once, and this
+    // runs before payment even completes.
+    if (!getCoachIdForClient(req.user.id) && !isBlockedEitherWay(req.user.id, coachId)) {
       const currentCount = getClientIds(coachId).length;
       if (currentCount < tierForCoach(coach).max) {
         addRelationship(coachId, req.user.id);

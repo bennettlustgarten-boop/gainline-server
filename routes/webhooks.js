@@ -1,7 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const Stripe = require("stripe");
-const { findUserByStripeAccountId, findUserBySubscriptionId, saveUser, recordPayment, updatePaymentPlan } = require("../db");
+const { cancelReplacedMembership } = require("./platform");
+const { getUser, findUserByStripeAccountId, findUserBySubscriptionId, saveUser, recordPayment, updatePaymentPlan } = require("../db");
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
@@ -34,6 +35,7 @@ router.post("/stripe", async (req, res) => {
       const purpose = session.metadata?.purpose;
 
       if (purpose === "membership") {
+        await cancelReplacedMembership(getUser(session.metadata.userId), session.subscription);
         saveUser(session.metadata.userId, {
           membershipTier: session.metadata.tierId,
           membershipStatus: "active",
@@ -87,6 +89,12 @@ router.post("/stripe", async (req, res) => {
             ...(event.type === "customer.subscription.deleted" ? { adSubId: null } : {}),
           });
         }
+      } else if (purpose === "client-payment" && event.type === "customer.subscription.deleted") {
+        // A client's monthly plan with their coach ended (cancelled in
+        // Stripe, or payments failed out) — without this the plan showed
+        // "active" on both dashboards forever.
+        const { clientId, planId } = subscription.metadata || {};
+        if (clientId && planId) updatePaymentPlan(clientId, planId, { status: "cancelled" });
       }
       break;
     }

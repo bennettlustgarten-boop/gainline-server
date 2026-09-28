@@ -35,8 +35,10 @@ router.get("/:coachId/mine", requireRole("client"), (req, res) => {
 router.post("/", requireRole("client"), (req, res) => {
   const { coachId, stars, comment } = req.body;
   const starsNum = Math.round(Number(stars));
-  if (!coachId || Number.isNaN(starsNum) || starsNum < 0 || starsNum > 5) {
-    return res.status(400).json({ error: "coachId and a 0-5 star rating are required" });
+  // 1-5, not 0-5: the review form starts at 0 stars, so submitting without
+  // tapping a rating used to post a 0-star review and drag the average down.
+  if (!coachId || Number.isNaN(starsNum) || starsNum < 1 || starsNum > 5) {
+    return res.status(400).json({ error: "Pick a rating from 1 to 5 stars" });
   }
   if (getCoachIdForClient(req.user.id) !== coachId) {
     return res.status(403).json({ error: "You can only review a coach you've worked with" });
