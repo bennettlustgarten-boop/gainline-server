@@ -50,6 +50,24 @@ function sanitizeVideoCount(template) {
   return template?.requireVideo ? 1 : 0;
 }
 
+// Weekly Apple Health numbers the iOS app attaches to a check-in (see
+// public/native.js). Only these known fields, only sane finite numbers —
+// anything else from the request is dropped.
+const HEALTH_FIELDS = { avgSteps: 200000, avgActiveCalories: 20000, avgHeartRate: 250, latestWeightLbs: 1000 };
+function sanitizeHealth(raw) {
+  let parsed = raw;
+  if (typeof raw === "string") {
+    try { parsed = JSON.parse(raw); } catch { return null; }
+  }
+  if (!parsed || typeof parsed !== "object") return null;
+  const out = {};
+  for (const [key, max] of Object.entries(HEALTH_FIELDS)) {
+    const n = Number(parsed[key]);
+    if (parsed[key] != null && Number.isFinite(n) && n >= 0 && n <= max) out[key] = Math.round(n * 10) / 10;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 // Filenames are prefixed with the client's id so the media-serving route can
 // check ownership without a separate lookup table. "--" (not "_") separates
 // it from the random suffix, since client ids themselves contain
@@ -143,7 +161,7 @@ router.post(
   },
   (req, res) => {
     try {
-      const { title, weight, answers, photoMeta } = req.body;
+      const { title, weight, answers, photoMeta, health } = req.body;
       const parsedAnswers = typeof answers === "string" ? JSON.parse(answers) : answers || [];
       const parsedPhotoMeta = typeof photoMeta === "string" ? JSON.parse(photoMeta) : photoMeta || []; // [{pose: "front"|"side"|"back"}, ...] same order as uploaded photo files
 
@@ -179,6 +197,7 @@ router.post(
         videoFiles: (req.files?.video || []).map((f) => f.filename),
         photos,
         answers: parsedAnswers,
+        health: sanitizeHealth(health),
         createdAt: Date.now(),
       };
       res.json({ submissions: addCheckinSubmission(req.user.id, submission) });

@@ -1118,3 +1118,36 @@ section[data-tab-panel].active {
   .msg-compose input { font-size: 16px; }
   .msg-compose button { padding-left: 16px; padding-right: 16px; }
 }
+
+/* Native app features (public/native.js) — only rendered inside the iOS app */
+
+.native-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.native-stats .stat {
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.native-stats .stat-num {
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.native-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.native-setting .small-btn {
+  flex-shrink: 0;
+}

@@ -25,6 +25,10 @@ let sheetFilter = "all";
 
   const { coach } = await api("/my-coach");
   MY_COACH = coach;
+  GainlineNative.setupDashboard(ME);
+  document.addEventListener("gainline:health-connected", () => {
+    if (document.querySelector('[data-tab-panel="home"]').classList.contains("active")) loadHome();
+  });
 
   setupTabs();
   setupCoachProfileModal();
@@ -92,6 +96,8 @@ async function loadHome() {
   } else {
     el.innerHTML = `<p class="hint">You're not connected to a coach yet. Head to "Find a Coach" to browse the feed, or ask your coach for their invite link.</p>`;
   }
+
+  GainlineNative.renderHealthCard(document.getElementById("home-health-card"));
 
   const { requests } = await api("/client-requests");
   const reqEl = document.getElementById("home-requests-card");
@@ -331,7 +337,11 @@ function renderCheckinForm(tmpl) {
     <div style="font-weight:800;">${escapeHtml(tmpl.title)}</div>
     <p class="hint">Nothing here is required — fill in what you can and send it, your coach would rather see a partial check-in than none at all.</p>
     <label>Weight</label>
-    <input type="text" id="checkin-weight" placeholder="e.g. 168 lbs" />
+    <div class="flex-row" style="gap:8px;">
+      <input type="text" id="checkin-weight" placeholder="e.g. 168 lbs" style="flex:1;" />
+      <button type="button" class="small-btn secondary" id="checkin-health-weight" style="display:none; margin-top:0; white-space:nowrap;">From Apple Health</button>
+    </div>
+    <div id="checkin-health" style="display:none; margin-top:10px;"></div>
     <div id="checkin-fields"></div>
     ${videoCount > 0 ? `
       <label style="margin-top:12px;">Form-check video${videoCount > 1 ? `s (up to ${videoCount})` : ""}</label>
@@ -380,6 +390,32 @@ function renderCheckinForm(tmpl) {
   ["front", "side", "back"].filter((pose) => posing[pose] > 0).forEach((pose) => renderPoseGrid(pose, posing[pose]));
 
   document.getElementById("checkin-submit-btn").onclick = () => submitCheckin(tmpl);
+  setupCheckinHealth();
+}
+
+// In the iOS app with Apple Health connected: a button to fill in the
+// latest weight, and this week's activity shown (and sent) with the check-in.
+let checkinHealthSummary = null;
+async function setupCheckinHealth() {
+  checkinHealthSummary = null;
+  if (!GainlineNative.healthConnected() || !(await GainlineNative.healthAvailable())) return;
+  const weightBtn = document.getElementById("checkin-health-weight");
+  const healthEl = document.getElementById("checkin-health");
+  if (!weightBtn || !healthEl) return;
+  weightBtn.style.display = "inline-block";
+  weightBtn.onclick = async () => {
+    const lbs = await GainlineNative.latestWeightLbs().catch(() => null);
+    if (lbs == null) return showStatus(document.getElementById("checkin-status"), "No weight found in Apple Health from the last 90 days.", "error");
+    document.getElementById("checkin-weight").value = `${lbs} lbs`;
+    GainlineNative.haptic();
+  };
+  try {
+    checkinHealthSummary = await GainlineNative.weeklySummary();
+    healthEl.style.display = "block";
+    healthEl.innerHTML = `<label style="margin:0;">Included from Apple Health (last 7 days)</label>${GainlineNative.healthSummaryHtml(checkinHealthSummary)}`;
+  } catch {
+    checkinHealthSummary = null;
+  }
 }
 
 const VIDEO_ICON = `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>`;
@@ -419,6 +455,24 @@ function renderPoseGrid(pose, count) {
       </div>
     `;
   }).join("");
+  // In the iOS app, use the native camera / photo library sheet instead of
+  // the web file picker.
+  if (GainlineNative.canUseCamera()) {
+    gridEl.querySelectorAll("[data-pose-file-input]").forEach((input) => {
+      input.style.display = "none";
+      input.closest("[data-pose-box]").onclick = async () => {
+        try {
+          const file = await GainlineNative.pickPhoto();
+          if (!file) return;
+          poseFiles[input.dataset.poseFileInput][Number(input.dataset.poseFileIndex)] = file;
+          renderPoseGrid(input.dataset.poseFileInput, count);
+        } catch (err) {
+          alert(err.message || "Couldn't open the camera.");
+        }
+      };
+    });
+    return;
+  }
   gridEl.querySelectorAll("[data-pose-file-input]").forEach((input) => {
     input.onchange = () => {
       const p = input.dataset.poseFileInput;
@@ -454,9 +508,14 @@ async function submitCheckin(tmpl) {
     });
   }
   formData.append("photoMeta", JSON.stringify(photoMeta));
+  if (checkinHealthSummary) formData.append("health", JSON.stringify(checkinHealthSummary));
 
   try {
     await api("/checkins/submissions", { method: "POST", body: formData });
+    GainlineNative.haptic("success");
+    if (GainlineNative.healthConnected()) {
+      GainlineNative.saveWeightToHealth(document.getElementById("checkin-weight").value).catch(() => {});
+    }
     checkinAnswers = {};
     poseFiles = { front: [], side: [], back: [] };
     videoFiles = [];
@@ -522,6 +581,7 @@ async function sendMessage() {
   if (!text) return;
   input.value = "";
   await api(`/messages/${MY_COACH.id}`, { method: "POST", body: JSON.stringify({ text }) });
+  GainlineNative.haptic();
   renderThread();
 }
 

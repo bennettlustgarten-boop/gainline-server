@@ -24,6 +24,7 @@
       <p class="hint" style="margin-top:6px; text-align:right;"><a href="/forgot-password.html">Forgot password?</a></p>
 
       <button type="submit" id="submit-btn">Log in</button>
+      <button type="button" id="biometric-btn" class="secondary" style="display:none; width:100%; margin-top:10px;"></button>
       <div class="status" id="status"></div>
     </form>
 
@@ -34,6 +35,7 @@
   </main>
 
   <script src="/app.js"></script>
+  <script src="/native.js"></script>
   <script>
     setupSupportLink();
     const form = document.getElementById("login-form");
@@ -49,13 +51,49 @@
       showStatus(statusEl, "Logging in...", "info");
       try {
         const { user } = await api("/auth/login", { method: "POST", body: JSON.stringify({ username, password }) });
-        const next = safeRelativePath(qs("next"));
-        window.location.href = next || (user.role === "coach" ? "/coach-dashboard.html" : "/client-dashboard.html");
+        // In the iOS app: offer to save this login for Face ID next time.
+        await GainlineNative.offerBiometricLogin(username, password);
+        goToDashboard(user);
       } catch (err) {
         showStatus(statusEl, err.message, "error");
         submitBtn.disabled = false;
       }
     });
+
+    function goToDashboard(user) {
+      const next = safeRelativePath(qs("next"));
+      window.location.href = next || (user.role === "coach" ? "/coach-dashboard.html" : "/client-dashboard.html");
+    }
+
+    // "Log in with Face ID" — only inside the iOS app, and only once a login
+    // has been saved to the Keychain on this device.
+    (async () => {
+      if (!GainlineNative.hasSavedLogin()) return;
+      const label = await GainlineNative.biometryLabel();
+      if (!label) return;
+      const bioBtn = document.getElementById("biometric-btn");
+      bioBtn.textContent = `Log in with ${label}`;
+      bioBtn.style.display = "block";
+      bioBtn.addEventListener("click", async () => {
+        let creds;
+        try {
+          creds = await GainlineNative.unlockSavedLogin();
+        } catch {
+          return; // cancelled or not recognized — the password form is still right there
+        }
+        bioBtn.disabled = true;
+        showStatus(statusEl, "Logging in...", "info");
+        try {
+          const { user } = await api("/auth/login", { method: "POST", body: JSON.stringify({ username: creds.username, password: creds.password }) });
+          goToDashboard(user);
+        } catch (err) {
+          // Most likely the password was changed since it was saved.
+          await GainlineNative.forgetLogin();
+          bioBtn.style.display = "none";
+          showStatus(statusEl, `${err.message} — log in with your password to set up ${label} again.`, "error");
+        }
+      });
+    })();
   </script>
 
   <footer class="site-footer">

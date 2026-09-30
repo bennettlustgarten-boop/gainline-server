@@ -20,6 +20,7 @@ const CAMERA_ICON = `<svg width="30" height="30" viewBox="0 0 24 24" fill="none"
     showEmailVerifyGate(ME.email);
     return;
   }
+  GainlineNative.setupDashboard(ME);
 
   const notice = sessionStorage.getItem("gainline_notice");
   if (notice) {
@@ -376,7 +377,8 @@ async function renderInviteCard() {
         <input type="text" readonly value="${escapeHtml(url)}" style="flex:1;" onclick="this.select()" />
         <button class="small-btn secondary button" id="copy-invite-btn">Copy</button>
       </div>
-      <p class="hint" style="margin-top:10px; margin-bottom:4px;">Send it with:</p>
+      ${GainlineNative.canShare() ? `<button type="button" id="share-invite-btn" style="width:100%; margin-top:10px;">Share invite link…</button>` : ""}
+      <p class="hint" style="margin-top:10px; margin-bottom:4px;">${GainlineNative.canShare() ? "Or send it with:" : "Send it with:"}</p>
       <div class="flex-row">
         <a class="button small-btn secondary" target="_blank" rel="noopener" href="${gmailHref}">Gmail</a>
         <a class="button small-btn secondary" target="_blank" rel="noopener" href="${outlookHref}">Outlook</a>
@@ -385,6 +387,11 @@ async function renderInviteCard() {
     `;
     document.getElementById("copy-invite-btn").addEventListener("click", () => {
       navigator.clipboard?.writeText(url).catch(() => {});
+      GainlineNative.haptic();
+    });
+    // iOS app: the native share sheet (Messages, WhatsApp, AirDrop, Mail...).
+    document.getElementById("share-invite-btn")?.addEventListener("click", () => {
+      GainlineNative.share({ title: subject, text: `${ME.name} invited you to join Gainline as a client.`, url }).catch((err) => alert(err.message));
     });
   });
 }
@@ -1084,12 +1091,24 @@ function checkinHistoryHtml(submissions) {
             <span class="hint">${fmtDate(s.createdAt)}</span>
           </div>
           <div class="hint" style="margin-top:4px;">Weight: ${escapeHtml(s.weight || "—")}</div>
+          ${checkinHealthHtml(s.health)}
           ${s.answers.filter((a) => a.value).map((a) => `<div style="font-size:13px; margin-top:2px;"><b>${escapeHtml(a.label)}:</b> ${escapeHtml(a.value)}</div>`).join("")}
           ${checkinVideosHtml(s)}
           ${posingPhotosHtml(s.photos)}
         </div>
       `).join("")
     : `<div class="card hint">No submissions from this client yet.</div>`;
+}
+
+// Apple Health numbers a client's iOS app attached to the check-in.
+function checkinHealthHtml(health) {
+  if (!health) return "";
+  const parts = [];
+  if (health.avgSteps != null) parts.push(`${Number(health.avgSteps).toLocaleString()} steps/day`);
+  if (health.avgActiveCalories != null) parts.push(`${Number(health.avgActiveCalories).toLocaleString()} active cal/day`);
+  if (health.avgHeartRate != null) parts.push(`${Number(health.avgHeartRate)} bpm avg`);
+  if (health.latestWeightLbs != null) parts.push(`${Number(health.latestWeightLbs)} lbs (Health)`);
+  return parts.length ? `<div style="font-size:13px; margin-top:4px;"><b>Apple Health, last 7 days:</b> ${escapeHtml(parts.join(" · "))}</div>` : "";
 }
 
 function posingPhotosHtml(photos) {
@@ -1343,6 +1362,7 @@ async function sendMessage(otherId) {
   if (!text) return;
   input.value = "";
   await api(`/messages/${otherId}`, { method: "POST", body: JSON.stringify({ text }) });
+  GainlineNative.haptic();
   renderThread(otherId);
 }
 

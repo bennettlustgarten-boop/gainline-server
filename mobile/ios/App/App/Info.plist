@@ -28,8 +28,20 @@
 	<string>Main</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
-		<string>armv7</string>
+		<string>arm64</string>
 	</array>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Gainline reads your weight, steps, active calories, and heart rate from Apple Health so your check-ins can include them and your coach can see your weekly activity.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Gainline saves the weight you log in a check-in to Apple Health, so your weight history stays in one place.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Gainline uses the camera to take progress photos and form-check videos for your coach.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Gainline lets you choose progress photos and videos from your library to send to your coach.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Gainline records audio with form-check videos you send to your coach.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Gainline uses Face ID so you can log in without typing your password.</string>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

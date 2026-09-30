@@ -154,6 +154,8 @@ function setupDeleteAccountLink() {
     showStatus(statusEl, "Deleting your account...", "info");
     try {
       await api("/auth/me", { method: "DELETE", body: JSON.stringify({ password }) });
+      // Drop any Face ID login saved in the iOS app's Keychain for this account.
+      if (window.GainlineNative) await GainlineNative.forgetLogin();
       window.location.href = "/";
     } catch (err) {
       showStatus(statusEl, err.message, "error");
