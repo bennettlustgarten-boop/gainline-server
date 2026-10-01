@@ -43,6 +43,19 @@
 
   // ---- Face ID login ---------------------------------------------------------
 
+  // Why Face ID / Touch ID is or isn't offered — shown in the app's
+  // login-page diagnostics line so a problem on a real phone is visible.
+  async function biometryStatus() {
+    if (!isApp) return "not in app";
+    if (!hasPlugin("NativeBiometric")) return "Face ID plugin missing from this app build";
+    try {
+      const r = await call("NativeBiometric", "isAvailable", {});
+      return r.isAvailable ? `available (type ${r.biometryType})` : `unavailable (code ${r.errorCode ?? "?"})`;
+    } catch (err) {
+      return `error: ${err?.message || err}`;
+    }
+  }
+
   async function biometryLabel() {
     if (!hasPlugin("NativeBiometric")) return null;
     try {
@@ -468,6 +481,7 @@
     isApp,
     haptic,
     biometryLabel,
+    biometryStatus,
     hasSavedLogin,
     savedLoginUsername,
     loginSavedOnDevice,
