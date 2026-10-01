@@ -68,7 +68,7 @@
     // "Log in with Face ID" — only inside the iOS app, and only once a login
     // has been saved to the Keychain on this device.
     (async () => {
-      if (!GainlineNative.hasSavedLogin()) return;
+      if (!(await GainlineNative.loginSavedOnDevice())) return;
       const label = await GainlineNative.biometryLabel();
       if (!label) return;
       const bioBtn = document.getElementById("biometric-btn");

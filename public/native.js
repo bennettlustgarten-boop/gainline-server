@@ -58,6 +58,22 @@
     return prefs.get("gl_biometric_login") === "1";
   }
 
+  // The Keychain is the source of truth for whether a login is saved. The
+  // localStorage flag is only a fast hint: WKWebView writes localStorage
+  // lazily, so fully closing the app soon after saving can lose it while
+  // the Keychain entry survives — which hid the Face ID button entirely.
+  async function loginSavedOnDevice() {
+    if (!hasPlugin("NativeBiometric")) return false;
+    try {
+      const { isSaved } = await call("NativeBiometric", "isCredentialsSaved", { server: KEYCHAIN_SERVER });
+      if (isSaved) prefs.set("gl_biometric_login", "1");
+      else prefs.remove("gl_biometric_login");
+      return !!isSaved;
+    } catch {
+      return hasSavedLogin();
+    }
+  }
+
   // Which account the Keychain login belongs to (just the username — never
   // the password), so the login button can say whose account it opens.
   function savedLoginUsername() {
@@ -447,6 +463,7 @@
     biometryLabel,
     hasSavedLogin,
     savedLoginUsername,
+    loginSavedOnDevice,
     unlockSavedLogin,
     offerBiometricLogin,
     forgetLogin,
