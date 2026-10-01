@@ -65,17 +65,26 @@
       window.location.href = next || (user.role === "coach" ? "/coach-dashboard.html" : "/client-dashboard.html");
     }
 
-    // "Log in with Face ID" — only inside the iOS app, and only once a login
-    // has been saved to the Keychain on this device.
+    // "Log in with Face ID" — shown inside the iOS app on any device with
+    // Face ID / Touch ID. If no login is saved yet, tapping it explains how
+    // to set it up rather than the button silently not existing.
     (async () => {
-      if (!(await GainlineNative.loginSavedOnDevice())) return;
       const label = await GainlineNative.biometryLabel();
       if (!label) return;
       const bioBtn = document.getElementById("biometric-btn");
-      const savedUser = GainlineNative.savedLoginUsername();
-      bioBtn.textContent = savedUser ? `Log in with ${label} as @${savedUser}` : `Log in with ${label}`;
+      const refreshLabel = async () => {
+        const saved = await GainlineNative.loginSavedOnDevice();
+        const savedUser = saved ? GainlineNative.savedLoginUsername() : null;
+        bioBtn.textContent = savedUser ? `Log in with ${label} as @${savedUser}` : `Log in with ${label}`;
+        return saved;
+      };
+      await refreshLabel();
       bioBtn.style.display = "block";
       bioBtn.addEventListener("click", async () => {
+        if (!(await refreshLabel())) {
+          showStatus(statusEl, `Log in with your password once and tap OK when asked — then ${label} will work next time.`, "info");
+          return;
+        }
         let creds;
         try {
           creds = await GainlineNative.unlockSavedLogin();
@@ -94,7 +103,8 @@
         } catch (err) {
           // Most likely the password was changed since it was saved.
           await GainlineNative.forgetLogin();
-          bioBtn.style.display = "none";
+          bioBtn.disabled = false;
+          await refreshLabel();
           showStatus(statusEl, `${err.message} — log in with your password to set up ${label} again.`, "error");
         }
       });

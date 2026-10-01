@@ -83,7 +83,9 @@
   async function saveLogin(username, password) {
     await call("NativeBiometric", "setCredentials", { username, password, server: KEYCHAIN_SERVER });
     prefs.set("gl_biometric_login", "1");
-    prefs.set("gl_biometric_user", String(username).trim().replace(/^@/, "").toLowerCase());
+    const handle = String(username).trim().replace(/^@/, "").toLowerCase();
+    prefs.set("gl_biometric_user", handle);
+    prefs.remove(`gl_biometric_declined_${handle}`);
   }
 
   async function forgetLogin() {
@@ -113,14 +115,19 @@
     const label = await biometryLabel();
     if (!label) return;
     if (saved) {
-      if (confirm(`Use ${label} for @${handle} instead of @${saved}?`)) await saveLogin(username, password).catch(() => {});
+      if (confirm(`Use ${label} for @${handle} instead of @${saved}?`)) {
+        await saveLogin(username, password).catch((err) => alert(`Couldn't turn on ${label}: ${err?.message || err}`));
+      }
       return;
     }
-    if (prefs.get("gl_biometric_declined") === "1") return;
+    // "No thanks" is remembered per account, not device-wide — a single
+    // tap of Cancel used to switch the offer off for good.
+    const declinedKey = `gl_biometric_declined_${handle}`;
+    if (prefs.get(declinedKey) === "1") return;
     if (confirm(`Use ${label} to log in next time?`)) {
-      await saveLogin(username, password).catch(() => {});
+      await saveLogin(username, password).catch((err) => alert(`Couldn't turn on ${label}: ${err?.message || err}`));
     } else {
-      prefs.set("gl_biometric_declined", "1");
+      prefs.set(declinedKey, "1");
     }
   }
 
