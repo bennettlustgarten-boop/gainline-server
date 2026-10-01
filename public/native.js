@@ -58,13 +58,21 @@
     return prefs.get("gl_biometric_login") === "1";
   }
 
+  // Which account the Keychain login belongs to (just the username — never
+  // the password), so the login button can say whose account it opens.
+  function savedLoginUsername() {
+    return hasSavedLogin() ? prefs.get("gl_biometric_user") : null;
+  }
+
   async function saveLogin(username, password) {
     await call("NativeBiometric", "setCredentials", { username, password, server: KEYCHAIN_SERVER });
     prefs.set("gl_biometric_login", "1");
+    prefs.set("gl_biometric_user", String(username).trim().replace(/^@/, "").toLowerCase());
   }
 
   async function forgetLogin() {
     prefs.remove("gl_biometric_login");
+    prefs.remove("gl_biometric_user");
     if (hasPlugin("NativeBiometric")) await call("NativeBiometric", "deleteCredentials", { server: KEYCHAIN_SERVER }).catch(() => {});
   }
 
@@ -74,11 +82,25 @@
     return call("NativeBiometric", "getCredentials", { server: KEYCHAIN_SERVER });
   }
 
-  // Called by login.html after a successful password login.
+  // Called by login.html after a successful password login. Only one
+  // account can be saved per device — logging in to a different account
+  // offers to switch Face ID over to it (previously it silently kept the
+  // old account, so Face ID kept opening the wrong one).
   async function offerBiometricLogin(username, password) {
-    if (hasSavedLogin() || prefs.get("gl_biometric_declined") === "1") return;
+    const handle = String(username).trim().replace(/^@/, "").toLowerCase();
+    const saved = savedLoginUsername();
+    if (saved === handle) {
+      // Same account — refresh the stored password in case it changed.
+      await saveLogin(username, password).catch(() => {});
+      return;
+    }
     const label = await biometryLabel();
     if (!label) return;
+    if (saved) {
+      if (confirm(`Use ${label} for @${handle} instead of @${saved}?`)) await saveLogin(username, password).catch(() => {});
+      return;
+    }
+    if (prefs.get("gl_biometric_declined") === "1") return;
     if (confirm(`Use ${label} to log in next time?`)) {
       await saveLogin(username, password).catch(() => {});
     } else {
@@ -424,6 +446,7 @@
     haptic,
     biometryLabel,
     hasSavedLogin,
+    savedLoginUsername,
     unlockSavedLogin,
     offerBiometricLogin,
     forgetLogin,

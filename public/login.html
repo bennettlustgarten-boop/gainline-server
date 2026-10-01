@@ -72,14 +72,19 @@
       const label = await GainlineNative.biometryLabel();
       if (!label) return;
       const bioBtn = document.getElementById("biometric-btn");
-      bioBtn.textContent = `Log in with ${label}`;
+      const savedUser = GainlineNative.savedLoginUsername();
+      bioBtn.textContent = savedUser ? `Log in with ${label} as @${savedUser}` : `Log in with ${label}`;
       bioBtn.style.display = "block";
       bioBtn.addEventListener("click", async () => {
         let creds;
         try {
           creds = await GainlineNative.unlockSavedLogin();
-        } catch {
-          return; // cancelled or not recognized — the password form is still right there
+        } catch (err) {
+          // Cancelling is normal — anything else gets shown instead of
+          // silently doing nothing.
+          const msg = err?.message || "";
+          if (!/cancel/i.test(msg)) showStatus(statusEl, `${label} didn't work${msg ? ` (${msg})` : ""}. Log in with your password instead.`, "error");
+          return;
         }
         bioBtn.disabled = true;
         showStatus(statusEl, "Logging in...", "info");
