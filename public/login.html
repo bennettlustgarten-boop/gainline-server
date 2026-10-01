@@ -69,15 +69,15 @@
     // Face ID / Touch ID. If no login is saved yet, tapping it explains how
     // to set it up rather than the button silently not existing.
     (async () => {
-      // In-app diagnostics: which deploy this page came from, and whether
-      // Face ID is usable — makes "the button isn't there" debuggable.
-      if (GainlineNative.isApp) {
-        const v = (document.querySelector('script[src*="native.js"]')?.src.match(/v=(w+)/) || [])[1] || "?";
-        const diag = document.createElement("p");
-        diag.className = "hint";
-        diag.style.cssText = "font-size:11px; opacity:0.6; margin-top:12px;";
-        diag.textContent = `App build ${v.slice(0, 7)} · Face ID: ${await GainlineNative.biometryStatus()}`;
-        document.querySelector("main").appendChild(diag);
+      // Face ID exists but iOS is blocking it for Gainline (permission
+      // switched off, or locked out) — say how to fix it.
+      const problem = await GainlineNative.biometryProblem();
+      if (problem) {
+        const note = document.createElement("p");
+        note.className = "hint";
+        note.style.marginTop = "10px";
+        note.textContent = problem;
+        document.getElementById("biometric-btn").after(note);
       }
       const label = await GainlineNative.biometryLabel();
       if (!label) return;

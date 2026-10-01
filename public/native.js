@@ -43,16 +43,21 @@
 
   // ---- Face ID login ---------------------------------------------------------
 
-  // Why Face ID / Touch ID is or isn't offered — shown in the app's
-  // login-page diagnostics line so a problem on a real phone is visible.
-  async function biometryStatus() {
-    if (!isApp) return "not in app";
-    if (!hasPlugin("NativeBiometric")) return "Face ID plugin missing from this app build";
+  // When the device has Face ID / Touch ID but iOS won't let Gainline use
+  // it, a plain-language fix to show on the login page (null when it's
+  // usable, or when there's simply no biometry on this device).
+  async function biometryProblem() {
+    if (!hasPlugin("NativeBiometric")) return null;
     try {
       const r = await call("NativeBiometric", "isAvailable", {});
-      return r.isAvailable ? `available (type ${r.biometryType})` : `unavailable (code ${r.errorCode ?? "?"})`;
-    } catch (err) {
-      return `error: ${err?.message || err}`;
+      if (r.isAvailable) return null;
+      const name = r.biometryType === 1 ? "Touch ID" : "Face ID";
+      if (r.errorCode === 2 || r.errorCode === 4) return `${name} is locked after too many tries — lock your iPhone and unlock it with your passcode, then reopen Gainline.`;
+      if (r.errorCode === 3) return null; // not set up on this device at all
+      if (r.biometryType) return `${name} is turned off for Gainline. To use it, open the Settings app → Gainline → turn on ${name}, then reopen Gainline.`;
+      return null;
+    } catch {
+      return null;
     }
   }
 
@@ -481,7 +486,7 @@
     isApp,
     haptic,
     biometryLabel,
-    biometryStatus,
+    biometryProblem,
     hasSavedLogin,
     savedLoginUsername,
     loginSavedOnDevice,
